@@ -3,6 +3,7 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
+		"emulator": "emulator -avd Pixel_8_API_30",
 		"android": "react-native run-android",
 		"ios": "react-native run-ios",
 		"lint": "eslint .",
@@ -19,6 +20,7 @@
 		"jszip": "^3.10.1",
 		"react": "18.2.0",
 		"react-native": "0.73.5",
+		"react-native-fs": "^2.20.0",
 		"react-native-gesture-handler": "^2.15.0",
 		"react-native-paper": "^5.12.3",
 		"react-native-safe-area-context": "^4.9.0",

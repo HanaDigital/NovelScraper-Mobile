@@ -1,14 +1,14 @@
 import { DatabaseT } from './types';
 import { AutoQueue } from './queue';
+import RNFS from 'react-native-fs';
 
 export const DATABASE_FILE_NAME = 'database.json';
+export const databaseURI = () => RNFS.DocumentDirectoryPath + `/${DATABASE_FILE_NAME}`;
 
 export const saveDatabaseToFile = async (database: DatabaseT): Promise<boolean> => {
 	try {
-		// const databaseUri = databaseURI();
-		// const fileContent = JSON.stringify(database);
-		// await FileSystem.writeAsStringAsync(databaseUri, fileContent, { encoding: FileSystem.EncodingType.UTF8 });
-		throw new Error('Not implemented');
+		const databaseUri = databaseURI();
+		await RNFS.writeFile(databaseUri, JSON.stringify(database), 'utf8');
 		return true;
 	} catch (error) {
 		console.error(error);
@@ -18,11 +18,9 @@ export const saveDatabaseToFile = async (database: DatabaseT): Promise<boolean> 
 
 export const loadDatabaseFromFile = async (): Promise<DatabaseT | undefined> => {
 	try {
-		// const databaseUri = databaseURI();
-		// const fileContent = await FileSystem.readAsStringAsync(databaseUri, { encoding: FileSystem.EncodingType.UTF8 });
-		// return JSON.parse(fileContent) as DatabaseT;
-		throw new Error('Not implemented');
-		return {} as DatabaseT;
+		const databaseUri = databaseURI();
+		const fileContent = await RNFS.readFile(databaseUri, 'utf8');
+		return JSON.parse(fileContent) as DatabaseT;
 	} catch (error) {
 		console.error(error);
 		return undefined;
