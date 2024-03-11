@@ -4,12 +4,11 @@ import { deleteNovelFromInternal, loadDatabaseFromInternal, saveDatabaseToIntern
 import { AutoQueue } from "../lib/queue";
 import clone from "clone";
 
-type DownloadStatusT = {
+export type DownloadStatusT = {
 	[novelURL: string]: {
 		totalChapters: number;
 		downloadedChapters: number;
 		complete: boolean;
-		cancel: boolean;
 	}
 }
 
@@ -17,8 +16,7 @@ export type UpdateDownloadStatusT = (
 	novelURL: string,
 	totalChapters: number,
 	downloadedChapters: number,
-	complete: boolean,
-	cancel?: boolean
+	complete: boolean
 ) => void;
 
 type DatabaseContextT = {
@@ -104,12 +102,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 		novelURL: string,
 		totalChapters: number,
 		downloadedChapters: number,
-		complete: boolean,
-		cancel = false
+		complete: boolean
 	) => {
 		setDownloadStatus(prevStatus => {
 			const newStatus = { ...prevStatus };
-			newStatus[novelURL] = { totalChapters, downloadedChapters, complete, cancel };
+			newStatus[novelURL] = { totalChapters, downloadedChapters, complete };
 			return newStatus;
 		});
 	}

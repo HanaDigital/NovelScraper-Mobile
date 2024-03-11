@@ -52,7 +52,7 @@ export default function NovelScreen({ route, navigation }: Props) {
 		// TODO: Handle sources here
 		switch (novel.source) {
 			case "NovelFull":
-				const newNovel = await downloadNovelFullNovel(novel, db.updateDownloadStatus, db.downloadStatus[novel.url].cancel);
+				const newNovel = await downloadNovelFullNovel(novel, db.updateDownloadStatus);
 				setNovel(newNovel);
 				db.saveNovel(newNovel);
 				return;
@@ -89,10 +89,7 @@ export default function NovelScreen({ route, navigation }: Props) {
 	}
 
 	const handleCancelDownload = () => {
-		db.setDownloadStatus(status => {
-			status[novel.url].cancel = true;
-			return { ...status };
-		})
+		// FIXME: Handle cancel download
 	}
 
 	if (!novel) return <Text>No Novel Selected!</Text>;
@@ -117,14 +114,7 @@ export default function NovelScreen({ route, navigation }: Props) {
 						</View>
 					}
 					<View style={styles.controlButtons}>
-						{(db.downloadStatus[novel.url] && !db.downloadStatus[novel.url].complete && !db.downloadStatus[novel.url].cancel) &&
-							<TouchableOpacity
-								onPress={() => handleCancelDownload()}
-							>
-								<MaterialIcons name="cancel" color="red" size={28} />
-							</TouchableOpacity>
-						}
-						{(novel.inLibrary && (!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete || db.downloadStatus[novel.url].cancel)) &&
+						{(novel.inLibrary && (!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete)) &&
 							<TouchableOpacity
 								onPress={() => handleDownloadNovel()}
 								disabled={isLoadingNovel}
@@ -132,7 +122,7 @@ export default function NovelScreen({ route, navigation }: Props) {
 								<MaterialIcons name="download" color="green" size={28} />
 							</TouchableOpacity>
 						}
-						{(!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete || db.downloadStatus[novel.url].cancel) &&
+						{(!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete) &&
 							<TouchableOpacity
 								onPress={() => inDatabase ? handleDeleteNovel() : handleSaveNovel()}
 								disabled={isLoadingNovel}
