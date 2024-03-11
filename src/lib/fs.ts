@@ -75,7 +75,6 @@ export const saveFileToDownloads = async (fileName: string, content: string, enc
 	try {
 		const fileURI = DOWNLOADS_URI + `/${getFileSafeString(fileName)}`;
 		const exists = await RNFS.exists(fileURI);
-		console.log("!!!", exists, fileURI)
 		if (exists) await RNFS.unlink(fileURI);
 		await RNFS.writeFile(fileURI, content, encoding);
 		return true;

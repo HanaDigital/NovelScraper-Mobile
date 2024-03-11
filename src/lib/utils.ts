@@ -32,3 +32,7 @@ export const getFolderSafeString = (str: string): string => {
 export const getFileSafeString = (str: string): string => {
 	return str.replace(/[^a-zA-Z0-9\.]/g, "_");
 }
+
+export const roundNumber = (num: number, factor: number) => {
+	return Math.round((num + Number.EPSILON) * (10 ** factor)) / (10 ** factor)
+}

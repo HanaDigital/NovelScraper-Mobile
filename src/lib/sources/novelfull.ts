@@ -4,6 +4,8 @@ import { ChapterDataT, ChapterT, NovelT, SOURCES } from "../types";
 import { generateEPUB, getPropagandaHTML } from "../epub/epub";
 import { NOVEL_CHAPTERS_URI, readChaptersFromInternal, readFileFromInternal, saveChaptersToInternal, saveFileToInternal, saveNovelEpubToDownloads } from "../fs";
 import { AutoQueue } from "../queue";
+import { UpdateDownloadStatusT } from "../../contexts/DatabaseContext";
+import { Dispatch, SetStateAction } from "react";
 
 export const searchNovelFullNovels = async (query: string): Promise<NovelT[]> => {
 	try {
@@ -103,12 +105,14 @@ export const loadNovelFullNovel = async (url: string, novelData?: NovelT): Promi
 	}
 }
 
-export const downloadNovelFullNovel = async (novel: NovelT) => {
+export const downloadNovelFullNovel = async (novel: NovelT, updateDownloadStatus: UpdateDownloadStatusT, isCancel: boolean) => {
 	let totalChapters = novel.totalChapters || 0;
 	let downloadedChapters = novel.downloadedChapters || 0;
 
 	try {
 		console.log(`Downloading novel: ${novel.title}`);
+		updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
+
 		let res = await axios.get(novel.url);
 		let $ = load(res.data);
 
@@ -119,6 +123,7 @@ export const downloadNovelFullNovel = async (novel: NovelT) => {
 		console.log(`Getting chapter links from ${totalPages} pages`);
 		const chapterLinks: ChapterT[] = [];
 		for (let i = 1; i <= totalPages; i++) {
+			if (isCancel) throw new Error("Download cancelled");
 			console.log(`Getting chapter links from page ${i} of ${totalPages}`);
 			$("#list-chapter .row ul.list-chapter > li").each((_, el) => {
 				const chapterEl = $(el);
@@ -133,7 +138,9 @@ export const downloadNovelFullNovel = async (novel: NovelT) => {
 			$ = load(res.data);
 		}
 		totalChapters = chapterLinks.length;
+		updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
 		console.log(`Total chapters: ${totalChapters}`);
+		if (isCancel) throw new Error("Download cancelled");
 
 		let chapters: ChapterDataT[] = [];
 		// Load downloaded chapters from cache if any
@@ -146,6 +153,7 @@ export const downloadNovelFullNovel = async (novel: NovelT) => {
 		downloadedChapters = 0;
 		const chaptersSaveQueue = new AutoQueue();
 		for (let i = 0; i < chapterLinks.length; i++) {
+			if (isCancel) throw new Error("Download cancelled");
 			const chapter = chapterLinks[i];
 			if (chapters.length > i && chapters[i].url === chapter.url && chapters[i].title === chapter.title) {
 				downloadedChapters++;
@@ -162,9 +170,12 @@ export const downloadNovelFullNovel = async (novel: NovelT) => {
 			// Cache downloaded chapters to file
 			chaptersSaveQueue.enqueue(() => saveChaptersToInternal(novel.url, JSON.stringify(chapters)));
 			downloadedChapters++;
+			updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
 		}
+		updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
 
 		// Generate and save EPUB
+		if (isCancel) throw new Error("Download cancelled");
 		console.log("Generating EPUB");
 		const epubBlob = await generateEPUB(novel, chapters);
 		await saveNovelEpubToDownloads(novel.title, epubBlob);
@@ -175,6 +186,7 @@ export const downloadNovelFullNovel = async (novel: NovelT) => {
 
 	novel.totalChapters = totalChapters;
 	novel.downloadedChapters = downloadedChapters;
+	updateDownloadStatus(novel.url, totalChapters, downloadedChapters, true);
 	return novel;
 }
 

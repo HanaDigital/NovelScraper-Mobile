@@ -8,8 +8,9 @@ import { downloadNovelFullNovel, loadNovelFullNovel } from "../lib/sources/novel
 import { DatabaseContext } from "../contexts/DatabaseContext";
 import { NovelT } from "../lib/types";
 import { LibraryStackParamList } from "./library/LibraryNavigator";
-import { assertUnreachable } from "../lib/utils";
+import { assertUnreachable, roundNumber } from "../lib/utils";
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { stripDatabaseInfoFromNovel } from "../lib/sources/sources";
 
 type Props = CompositeScreenProps<
 	StackScreenProps<SourcesStackParamList, "Novel">,
@@ -35,7 +36,7 @@ export default function NovelScreen({ route, navigation }: Props) {
 			console.log("Novel not found in database, loading from source");
 			loadNovel();
 		}
-	}, []);
+	}, [db.database]);
 
 	const loadSourceNovel = async (novel: NovelT): Promise<NovelT | undefined> => {
 		// TODO: Handle sources here
@@ -48,11 +49,10 @@ export default function NovelScreen({ route, navigation }: Props) {
 
 	const handleDownloadNovel = async () => {
 		if (isLoadingNovel) return;
-		let newNovel: NovelT | undefined = undefined;
 		// TODO: Handle sources here
 		switch (novel.source) {
 			case "NovelFull":
-				const newNovel = await downloadNovelFullNovel(novel);
+				const newNovel = await downloadNovelFullNovel(novel, db.updateDownloadStatus, db.downloadStatus[novel.url].cancel);
 				setNovel(newNovel);
 				db.saveNovel(newNovel);
 				return;
@@ -82,8 +82,17 @@ export default function NovelScreen({ route, navigation }: Props) {
 	const handleDeleteNovel = () => {
 		if (!db.database || !inDatabase || isLoadingNovel) return;
 		const isDeleted = db.deleteNovel(novel);
+		setNovel(prevNovel => stripDatabaseInfoFromNovel(prevNovel));
 		if (!isDeleted) console.error("Failed to delete novel from database");
 		else setInDatabase(false);
+		// if (navigation.canGoBack()) navigation.goBack();
+	}
+
+	const handleCancelDownload = () => {
+		db.setDownloadStatus(status => {
+			status[novel.url].cancel = true;
+			return { ...status };
+		})
 	}
 
 	if (!novel) return <Text>No Novel Selected!</Text>;
@@ -91,20 +100,47 @@ export default function NovelScreen({ route, navigation }: Props) {
 		<ScrollView style={styles.scrollView}>
 			<View style={{ ...styles.novelInfo, opacity: isLoadingNovel ? 0.5 : 1 }}>
 				<View style={styles.controls}>
-					{novel.inLibrary &&
-						<TouchableOpacity
-							onPress={() => handleDownloadNovel()}
-							disabled={isLoadingNovel}
-						>
-							<MaterialIcons name="download" color="green" size={28} />
-						</TouchableOpacity>
+					{(db.downloadStatus[novel.url] && !db.downloadStatus[novel.url].complete) &&
+						<View style={styles.progress}>
+							<View style={{
+								...styles.progressBar,
+								width: `${roundNumber((db.downloadStatus[novel.url].downloadedChapters
+									/ db.downloadStatus[novel.url].totalChapters)
+									* 100, 2)}%`
+							}}
+							></View>
+							<Text>
+								{`${roundNumber((db.downloadStatus[novel.url].downloadedChapters
+									/ db.downloadStatus[novel.url].totalChapters)
+									* 100, 2)}%`}
+							</Text>
+						</View>
 					}
-					<TouchableOpacity
-						onPress={() => inDatabase ? handleDeleteNovel() : handleSaveNovel()}
-						disabled={isLoadingNovel}
-					>
-						<MaterialIcons name="save" color={inDatabase ? "red" : "green"} size={28} />
-					</TouchableOpacity>
+					<View style={styles.controlButtons}>
+						{(db.downloadStatus[novel.url] && !db.downloadStatus[novel.url].complete && !db.downloadStatus[novel.url].cancel) &&
+							<TouchableOpacity
+								onPress={() => handleCancelDownload()}
+							>
+								<MaterialIcons name="cancel" color="red" size={28} />
+							</TouchableOpacity>
+						}
+						{(novel.inLibrary && (!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete || db.downloadStatus[novel.url].cancel)) &&
+							<TouchableOpacity
+								onPress={() => handleDownloadNovel()}
+								disabled={isLoadingNovel}
+							>
+								<MaterialIcons name="download" color="green" size={28} />
+							</TouchableOpacity>
+						}
+						{(!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete || db.downloadStatus[novel.url].cancel) &&
+							<TouchableOpacity
+								onPress={() => inDatabase ? handleDeleteNovel() : handleSaveNovel()}
+								disabled={isLoadingNovel}
+							>
+								<MaterialIcons name="save" color={inDatabase ? "red" : "green"} size={28} />
+							</TouchableOpacity>
+						}
+					</View>
 				</View>
 
 				{(novel.coverURL || novel.thumbnailURL) &&
@@ -155,6 +191,11 @@ export default function NovelScreen({ route, navigation }: Props) {
 				</View>
 
 				<View>
+					<Text style={styles.label}>Downloaded Chapters</Text>
+					<Text style={styles.value}>{novel.downloadedChapters || "Unknown"}</Text>
+				</View>
+
+				<View>
 					<Text style={styles.label}>Status</Text>
 					<Text style={styles.value}>{novel.status}</Text>
 				</View>
@@ -178,9 +219,26 @@ const styles = StyleSheet.create({
 	},
 	controls: {
 		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		padding: 10,
+	},
+	progress: {
+		width: "50%",
+		height: 20,
+		flexDirection: "row",
+		gap: 10,
+		backgroundColor: "lightgray",
+	},
+	progressBar: {
+		backgroundColor: "#22272e",
+		height: "100%",
+	},
+	controlButtons: {
+		flex: 1,
+		flexDirection: "row",
 		justifyContent: "flex-end",
 		gap: 20,
-		padding: 10,
 	},
 	novelImage: {
 		width: 221,

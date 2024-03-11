@@ -4,9 +4,29 @@ import { deleteNovelFromInternal, loadDatabaseFromInternal, saveDatabaseToIntern
 import { AutoQueue } from "../lib/queue";
 import clone from "clone";
 
+type DownloadStatusT = {
+	[novelURL: string]: {
+		totalChapters: number;
+		downloadedChapters: number;
+		complete: boolean;
+		cancel: boolean;
+	}
+}
+
+export type UpdateDownloadStatusT = (
+	novelURL: string,
+	totalChapters: number,
+	downloadedChapters: number,
+	complete: boolean,
+	cancel?: boolean
+) => void;
+
 type DatabaseContextT = {
 	database: DatabaseT | undefined;
 	setDatabase: Dispatch<SetStateAction<DatabaseT | undefined>>;
+	downloadStatus: DownloadStatusT;
+	setDownloadStatus: Dispatch<SetStateAction<DownloadStatusT>>;
+	updateDownloadStatus: UpdateDownloadStatusT;
 
 	saveNovel: (novel: NovelT) => boolean;
 	deleteNovel: (novel: NovelT) => boolean;
@@ -16,6 +36,8 @@ export const DatabaseContext = createContext<DatabaseContextT>({} as DatabaseCon
 
 export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 	const [database, setDatabase] = useState<DatabaseT | undefined>(undefined);
+	const [downloadStatus, setDownloadStatus] = useState<DownloadStatusT>({});
+
 	const [databaseSaveQueue, setDatabaseSaveQueue] = useState(new AutoQueue());
 
 	useEffect(() => {
@@ -78,9 +100,24 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 		});
 	}
 
+	const updateDownloadStatus: UpdateDownloadStatusT = (
+		novelURL: string,
+		totalChapters: number,
+		downloadedChapters: number,
+		complete: boolean,
+		cancel = false
+	) => {
+		setDownloadStatus(prevStatus => {
+			const newStatus = { ...prevStatus };
+			newStatus[novelURL] = { totalChapters, downloadedChapters, complete, cancel };
+			return newStatus;
+		});
+	}
+
 	return (
 		<DatabaseContext.Provider value={{
 			database, setDatabase,
+			downloadStatus, setDownloadStatus, updateDownloadStatus,
 			saveNovel, deleteNovel
 		}}>
 			{children}
