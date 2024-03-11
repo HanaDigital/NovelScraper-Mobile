@@ -4,12 +4,11 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { SourcesStackParamList } from "./sources/SourcesNavigator";
 import { ScrollView, TouchableOpacity } from "react-native-gesture-handler";
 import { useContext, useEffect, useState } from "react";
-import { downloadChapter, downloadNovelFullNovel, loadNovelFullNovel } from "../lib/sources/novelfull";
+import { downloadNovelFullNovel, loadNovelFullNovel } from "../lib/sources/novelfull";
 import { DatabaseContext } from "../contexts/DatabaseContext";
 import { NovelT } from "../lib/types";
 import { LibraryStackParamList } from "./library/LibraryNavigator";
 import { assertUnreachable } from "../lib/utils";
-import { testEpubGen } from "../lib/epub/epub";
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 type Props = CompositeScreenProps<
@@ -38,18 +37,25 @@ export default function NovelScreen({ route, navigation }: Props) {
 		}
 	}, []);
 
-	const test = async () => {
-		const isGenerated = await testEpubGen();
-		console.log("!!!Generated EPUB:", isGenerated);
-	}
-
 	const loadSourceNovel = async (novel: NovelT): Promise<NovelT | undefined> => {
 		// TODO: Handle sources here
 		switch (novel.source) {
 			case "NovelFull":
 				return await loadNovelFullNovel(novel.url, novel);
-			case "BoxNovel":
-				return undefined;	// FIXME: Add BoxNovel support
+		}
+		return assertUnreachable(novel.source);
+	}
+
+	const handleDownloadNovel = async () => {
+		if (isLoadingNovel) return;
+		let newNovel: NovelT | undefined = undefined;
+		// TODO: Handle sources here
+		switch (novel.source) {
+			case "NovelFull":
+				const newNovel = await downloadNovelFullNovel(novel);
+				setNovel(newNovel);
+				db.saveNovel(newNovel);
+				return;
 		}
 		return assertUnreachable(novel.source);
 	}
@@ -84,18 +90,22 @@ export default function NovelScreen({ route, navigation }: Props) {
 	return (
 		<ScrollView style={styles.scrollView}>
 			<View style={{ ...styles.novelInfo, opacity: isLoadingNovel ? 0.5 : 1 }}>
-				<TouchableOpacity
-					onPress={() => inDatabase ? handleDeleteNovel() : handleSaveNovel()}
-					disabled={isLoadingNovel}
-				>
-					<MaterialIcons name="save" color={inDatabase ? "red" : "green"} size={28} />
-				</TouchableOpacity>
-				<TouchableOpacity
-					onPress={() => test()}
-					disabled={isLoadingNovel}
-				>
-					<MaterialIcons name="download" size={28} />
-				</TouchableOpacity>
+				<View style={styles.controls}>
+					{novel.inLibrary &&
+						<TouchableOpacity
+							onPress={() => handleDownloadNovel()}
+							disabled={isLoadingNovel}
+						>
+							<MaterialIcons name="download" color="green" size={28} />
+						</TouchableOpacity>
+					}
+					<TouchableOpacity
+						onPress={() => inDatabase ? handleDeleteNovel() : handleSaveNovel()}
+						disabled={isLoadingNovel}
+					>
+						<MaterialIcons name="save" color={inDatabase ? "red" : "green"} size={28} />
+					</TouchableOpacity>
+				</View>
 
 				{(novel.coverURL || novel.thumbnailURL) &&
 					<Image source={{ uri: novel.coverURL || novel.thumbnailURL }} style={styles.novelImage} />
@@ -165,6 +175,12 @@ const styles = StyleSheet.create({
 	novelInfo: {
 		flexDirection: "column",
 		gap: 10,
+	},
+	controls: {
+		flexDirection: "row",
+		justifyContent: "flex-end",
+		gap: 20,
+		padding: 10,
 	},
 	novelImage: {
 		width: 221,

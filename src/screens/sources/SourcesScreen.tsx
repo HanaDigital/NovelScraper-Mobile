@@ -5,7 +5,6 @@ import { ScrollView, TouchableOpacity } from "react-native-gesture-handler";
 import ImageAutoHeight from "../../components/ImageAutoHeight";
 import { useContext, useEffect, useState } from "react";
 import { DatabaseContext } from "../../contexts/DatabaseContext";
-import { testQueue } from "../../lib/fs";
 import { SOURCES } from "../../lib/types";
 
 type Props = StackScreenProps<SourcesStackParamList, "Sources">;

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { FlatList, TextInput, TouchableOpacity } from "react-native-gesture-handler";
 import { NovelT } from "../../lib/types";
-import { searchNovelFull } from "../../lib/sources/novelfull";
+import { searchNovelFullNovels } from "../../lib/sources/novelfull";
 import { StackScreenProps } from "@react-navigation/stack";
 import { SourcesStackParamList } from "./SourcesNavigator";
 import { assertUnreachable } from "../../lib/utils";
@@ -18,7 +18,7 @@ export default function SourceScreen({ route, navigation }: Props) {
 		// TODO: Handle sources here
 		switch (source.name) {
 			case "NovelFull":
-				return await searchNovelFull(search);
+				return await searchNovelFullNovels(search);
 			case "BoxNovel":
 				return [];	// FIXME: Add BoxNovel support
 		}

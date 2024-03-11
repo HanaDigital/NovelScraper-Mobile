@@ -1,6 +1,6 @@
 import { Dispatch, ReactNode, SetStateAction, createContext, useEffect, useState } from "react";
 import { DatabaseT, NovelT, SOURCES } from "../lib/types";
-import { loadDatabaseFromFile, saveDatabaseToFile } from "../lib/fs";
+import { deleteNovelFromInternal, loadDatabaseFromInternal, saveDatabaseToInternal } from "../lib/fs";
 import { AutoQueue } from "../lib/queue";
 import clone from "clone";
 
@@ -29,7 +29,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 	}, [database]);
 
 	const loadDatabase = async () => {
-		const db = await loadDatabaseFromFile();
+		const db = await loadDatabaseFromInternal();
 		if (db) {
 			console.log("Loaded database from file");
 			setDatabase(db);
@@ -52,6 +52,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 		if (!database.sources[novel.source]) return false;
 		setDatabase(prevDB => {
 			if (!prevDB) return prevDB;
+			novel.inLibrary = true;
 			prevDB.novels[novel.url] = novel;
 			return { ...prevDB };
 		});
@@ -66,11 +67,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 			delete prevDB.novels[novel.url];
 			return { ...prevDB };
 		});
+		deleteNovelFromInternal(novel.url);
 		return true;
 	}
 
 	const saveDatabase = (newDatabase: DatabaseT) => {
-		databaseSaveQueue.enqueue(() => saveDatabaseToFile(newDatabase)).then(res => {
+		databaseSaveQueue.enqueue(() => saveDatabaseToInternal(newDatabase)).then(res => {
 			if (res) console.log("Database saved successfully");
 			else console.error("Failed to save database");
 		});

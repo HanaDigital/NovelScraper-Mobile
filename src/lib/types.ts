@@ -5,11 +5,11 @@ export const SOURCES = {
 		url: "https://novelfull.com",
 		logo: require("../assets/images/novelfull-logo.png")
 	},
-	"BoxNovel": {
-		name: "BoxNovel",
-		url: "https://boxnovel.com",
-		logo: require("../assets/images/boxnovel-logo.png")
-	}
+	// "BoxNovel": {
+	// 	name: "BoxNovel",
+	// 	url: "https://boxnovel.com",
+	// 	logo: require("../assets/images/boxnovel-logo.png")
+	// }
 } as const;
 
 export type SourceNamesT = keyof typeof SOURCES;
@@ -30,6 +30,8 @@ export type NovelT = {
 	downloadedChapters?: number;
 	status?: string;
 	rating?: string;
+	isDownloaded?: boolean;
+	inLibrary?: boolean;
 }
 
 export type SourceT = {

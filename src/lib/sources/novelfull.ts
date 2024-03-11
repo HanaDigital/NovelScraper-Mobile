@@ -1,10 +1,11 @@
 const axios = require('axios/dist/browser/axios.cjs');
 import { load } from "cheerio";
 import { ChapterDataT, ChapterT, NovelT, SOURCES } from "../types";
-import { getPropagandaHTML } from "../utils";
-import { generateEPUB } from "../epub/epub";
+import { generateEPUB, getPropagandaHTML } from "../epub/epub";
+import { NOVEL_CHAPTERS_URI, readChaptersFromInternal, readFileFromInternal, saveChaptersToInternal, saveFileToInternal, saveNovelEpubToDownloads } from "../fs";
+import { AutoQueue } from "../queue";
 
-export const searchNovelFull = async (query: string): Promise<NovelT[]> => {
+export const searchNovelFullNovels = async (query: string): Promise<NovelT[]> => {
 	try {
 		const searchURL = `${SOURCES.NovelFull.url}/search?keyword=${encodeURIComponent(query)}`;
 		const res = await axios.get(searchURL);
@@ -53,21 +54,31 @@ export const loadNovelFullNovel = async (url: string, novelData?: NovelT): Promi
 		const status = novelInfoEl.find(".info-holder .info > div:nth-of-type(5) > a").text().trim();
 
 		const chaptersEl = $("#list-chapter");
-		const chaptersPerPage = (".row ul.list-chapter > li").length * 2;
+		let chaptersPerPage = 0;
+		$(".row ul.list-chapter").each((_, el) => {
+			chaptersPerPage += $(el).find("li").length;
+		});
 
+		let totalPages = 1;
+		let totalChapters = 0;
 		const lastPageURL = chaptersEl.find("ul.pagination > li.last").find("a").attr("href");
-		const totalPages = Number.parseInt(lastPageURL?.match(/page=(\d+)/)?.[1] || "1");
+		if (lastPageURL) {
+			// Get total chapters if there are multiple pages
+			totalPages = Number.parseInt(lastPageURL.match(/page=(\d+)/)?.[1] || "1");
+			totalChapters = chaptersPerPage * (totalPages - 1);
 
-		let totalChapters = chaptersPerPage * (totalPages - 1);
-
-		try {
-			const lastPageRes = await axios.get(`${SOURCES.NovelFull.url}${lastPageURL}`);
-			const lastPage$ = load(lastPageRes.data);
-			lastPage$("#list-chapter .row ul.list-chapter").each((_, el) => {
-				totalChapters += $(el).find("li").length;
-			});
-		} catch (error) {
-			console.error("Error while getting total chapters:", error);
+			try {
+				const lastPageRes = await axios.get(`${SOURCES.NovelFull.url}${lastPageURL}`);
+				const lastPage$ = load(lastPageRes.data);
+				lastPage$("#list-chapter .row ul.list-chapter").each((_, el) => {
+					totalChapters += $(el).find("li").length;
+				});
+			} catch (error) {
+				console.error("Error while getting total chapters:", error);
+			}
+		} else {
+			// Get total chapters if there is only one page
+			totalChapters = chaptersPerPage;
 		}
 
 		const novel: NovelT = {
@@ -93,7 +104,11 @@ export const loadNovelFullNovel = async (url: string, novelData?: NovelT): Promi
 }
 
 export const downloadNovelFullNovel = async (novel: NovelT) => {
+	let totalChapters = novel.totalChapters || 0;
+	let downloadedChapters = novel.downloadedChapters || 0;
+
 	try {
+		console.log(`Downloading novel: ${novel.title}`);
 		let res = await axios.get(novel.url);
 		let $ = load(res.data);
 
@@ -101,8 +116,10 @@ export const downloadNovelFullNovel = async (novel: NovelT) => {
 		const totalPages = Number.parseInt(lastPageURL?.match(/page=(\d+)/)?.[1] || "1");
 
 		// Get all chapter links
+		console.log(`Getting chapter links from ${totalPages} pages`);
 		const chapterLinks: ChapterT[] = [];
 		for (let i = 1; i <= totalPages; i++) {
+			console.log(`Getting chapter links from page ${i} of ${totalPages}`);
 			$("#list-chapter .row ul.list-chapter > li").each((_, el) => {
 				const chapterEl = $(el);
 				const title = chapterEl.find("a").text().trim();
@@ -115,30 +132,53 @@ export const downloadNovelFullNovel = async (novel: NovelT) => {
 			res = await axios.get(`${novel.url}?page=${i}`);
 			$ = load(res.data);
 		}
+		totalChapters = chapterLinks.length;
+		console.log(`Total chapters: ${totalChapters}`);
 
-		// Download chapters
-		const chapters: ChapterDataT[] = [];
-		for (let i = 0; i < chapterLinks.length; i++) {
-			const chapter = chapterLinks[i];
-			const content = await downloadChapter(chapter.title, chapter.url);
-			if (!content) throw new Error("Failed to download chapter content");
-			chapters.push({ ...chapter, content });
+		let chapters: ChapterDataT[] = [];
+		// Load downloaded chapters from cache if any
+		if (novel.downloadedChapters) {
+			const chaptersJsonStr = await readChaptersFromInternal(novel.url);
+			if (chaptersJsonStr) chapters = JSON.parse(chaptersJsonStr) as ChapterDataT[];
 		}
 
+		// Download chapters
+		downloadedChapters = 0;
+		const chaptersSaveQueue = new AutoQueue();
+		for (let i = 0; i < chapterLinks.length; i++) {
+			const chapter = chapterLinks[i];
+			if (chapters.length > i && chapters[i].url === chapter.url && chapters[i].title === chapter.title) {
+				downloadedChapters++;
+				console.log(`Chapter ${i + 1} of ${chapterLinks.length} already downloaded`);
+				continue;
+			} else if (chapters.length > i) {
+				chapters.splice(i, 1);
+			}
+			console.log(`Downloading chapter ${i + 1} of ${chapterLinks.length}`);
+			const content = await downloadNovelFullChapter(chapter.title, chapter.url);
+			if (!content) throw new Error("Failed to download chapter content");
+			chapters.push({ ...chapter, content });
+
+			// Cache downloaded chapters to file
+			chaptersSaveQueue.enqueue(() => saveChaptersToInternal(novel.url, JSON.stringify(chapters)));
+			downloadedChapters++;
+		}
+
+		// Generate and save EPUB
+		console.log("Generating EPUB");
 		const epubBlob = await generateEPUB(novel, chapters);
-		// const epubURI = FileSystem.documentDirectory + `${novel.title}.epub`;
-		// await FileSystem.writeAsStringAsync(epubURI, await epubBlob.text(), { encoding: FileSystem.EncodingType.Base64 });
-
-		novel.totalChapters = chapterLinks.length;
-		novel.downloadedChapters = chapters.length;
-
+		await saveNovelEpubToDownloads(novel.title, epubBlob);
+		novel.isDownloaded = true;
 	} catch (error) {
 		console.error(error);
-		return novel;
 	}
+
+	novel.totalChapters = totalChapters;
+	novel.downloadedChapters = downloadedChapters;
+	return novel;
 }
 
-export const downloadChapter = async (title: string, url: string) => {
+const downloadNovelFullChapter = async (title: string, url: string) => {
 	try {
 		const res = await axios.get(url);
 		const $ = load(res.data);
