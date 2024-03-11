@@ -1,6 +1,6 @@
 import { Dispatch, ReactNode, SetStateAction, createContext, useEffect, useState } from "react";
 import { DatabaseT, NovelT, SOURCES } from "../lib/types";
-import { loadDatabaseFromFile, saveDatabaseToFile } from "../lib/database";
+import { loadDatabaseFromFile, saveDatabaseToFile } from "../lib/fs";
 import { AutoQueue } from "../lib/queue";
 import clone from "clone";
 

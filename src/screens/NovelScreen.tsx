@@ -26,11 +26,6 @@ export default function NovelScreen({ route, navigation }: Props) {
 	const [showMoreDesc, setShowMoreDesc] = useState(false);
 
 	useEffect(() => {
-		// downloadNovelFullNovel(novel);
-		// downloadChapter("Chapter 1", "https://novelfull.com/turns-out-im-from-a-real-aristocratic-family/chapter-1.html");
-		test();
-
-
 		const dbNovel = db.database?.novels[novel.url];
 		if (dbNovel) {
 			console.log("Loaded novel from database");
@@ -44,17 +39,8 @@ export default function NovelScreen({ route, navigation }: Props) {
 	}, []);
 
 	const test = async () => {
-		const uri = await testEpubGen();
-		// const isAvailable = await Sharing.isAvailableAsync();
-		// if (isAvailable) {
-		// 	await Sharing.shareAsync(uri, {
-		// 		mimeType: "application/epub+zip",
-		// 		dialogTitle: "Share this EPUB",
-		// 		UTI: "org.idpf.epub-container",
-		// 	});
-		// } else {
-		// 	console.log("Sharing not available");
-		// }
+		const isGenerated = await testEpubGen();
+		console.log("!!!Generated EPUB:", isGenerated);
 	}
 
 	const loadSourceNovel = async (novel: NovelT): Promise<NovelT | undefined> => {
@@ -103,6 +89,12 @@ export default function NovelScreen({ route, navigation }: Props) {
 					disabled={isLoadingNovel}
 				>
 					<MaterialIcons name="save" color={inDatabase ? "red" : "green"} size={28} />
+				</TouchableOpacity>
+				<TouchableOpacity
+					onPress={() => test()}
+					disabled={isLoadingNovel}
+				>
+					<MaterialIcons name="download" size={28} />
 				</TouchableOpacity>
 
 				{(novel.coverURL || novel.thumbnailURL) &&

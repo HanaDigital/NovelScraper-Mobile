@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { ChapterDataT, ChaptersT, NovelT } from "../types";
 import { downloadImageBlob } from "../utils";
+import { saveFileToDownloads } from "../fs";
 
 export const testEpubGen = async () => {
 	const novel: NovelT = {
@@ -24,18 +25,27 @@ export const testEpubGen = async () => {
 			content: "This is the content of chapter 2",
 		},
 	];
-	const epubBlob = await generateEPUB(novel, chapters);
 
-	// const novelURI = FileSystem.documentDirectory + `${novel.title}.epub`;
+	try {
+		const epubBlob = await generateEPUB(novel, chapters);
+		const epub = await getBlobAsStringP(epubBlob);
+		await saveFileToDownloads("test.epub", epub, "base64");
+		return true;
+	} catch (error) {
+		console.error(error);
+		return false;
+	}
+}
 
-	// const fr = new FileReader();
-	// fr.onload = async () => {
-	// 	if (!fr.result) return;
-	// 	await FileSystem.writeAsStringAsync(novelURI, fr.result as string, { encoding: FileSystem.EncodingType.Base64 });
-	// }
-	// fr.readAsText(epubBlob);
-
-	// return novelURI;
+const getBlobAsStringP = (blob: Blob): Promise<string> => {
+	return new Promise<string>((resolve, reject) => {
+		const fr = new FileReader();
+		fr.onload = () => {
+			if (!fr.result) return reject("Failed to read blob");
+			resolve(fr.result as string);
+		}
+		fr.readAsText(blob);
+	});
 }
 
 export const generateEPUB = async (novel: NovelT, chapters: ChapterDataT[]) => {

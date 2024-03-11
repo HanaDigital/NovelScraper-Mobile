@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import SafeLayout from "../components/SafeLayout";
+import { useEffect } from "react";
 
 export default function HomeScreen() {
 	return (
