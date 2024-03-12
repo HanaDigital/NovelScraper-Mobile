@@ -109,6 +109,7 @@ dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:flipper-integration")
 	implementation project(':react-native-fs')
+	implementation 'org.jsoup:jsoup:1.17.2'
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
