@@ -5,6 +5,17 @@ This is a new [**React Native**](https://reactnative.dev) project, bootstrapped 
 - Node: 20.11.1
 - Java JDK: 17
 
+# RELEASE
+
+```bash
+react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
+
+
+cd android
+
+./gradlew assembleDebug
+```
+
 >**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
 
 ## Step 1: Start the Metro Server
