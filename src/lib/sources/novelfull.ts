@@ -2,10 +2,10 @@ const axios = require('axios/dist/browser/axios.cjs');
 import { load } from "cheerio";
 import { ChapterDataT, ChapterT, NovelT, SOURCES } from "../types";
 import { generateEPUB, getPropagandaHTML } from "../epub/epub";
-import { NOVEL_CHAPTERS_URI, readChaptersFromInternal, readFileFromInternal, saveChaptersToInternal, saveFileToInternal, saveNovelEpubToDownloads } from "../fs";
+import { readChaptersFromInternal, saveChaptersToInternal, saveNovelEpubToDownloads } from "../fs";
 import { AutoQueue } from "../queue";
-import { DownloadStatusT, UpdateDownloadStatusT } from "../../contexts/DatabaseContext";
-import { Dispatch, SetStateAction } from "react";
+import useDatabaseStore from "../../stores/databaseStore";
+import { timeout } from "../utils";
 
 export const searchNovelFullNovels = async (query: string): Promise<NovelT[]> => {
 	try {
@@ -39,7 +39,7 @@ export const searchNovelFullNovels = async (query: string): Promise<NovelT[]> =>
 	}
 }
 
-export const loadNovelFullNovel = async (url: string, novelData?: NovelT): Promise<NovelT | undefined> => {
+export const fetchNovelFullNovel = async (url: string, novelData?: NovelT): Promise<NovelT | undefined> => {
 	try {
 		const res = await axios.get(url);
 		const $ = load(res.data);
@@ -105,13 +105,22 @@ export const loadNovelFullNovel = async (url: string, novelData?: NovelT): Promi
 	}
 }
 
-export const downloadNovelFullNovel = async (novel: NovelT, updateDownloadStatus: UpdateDownloadStatusT) => {
+export const downloadNovelFullNovel = async (novel: NovelT) => {
+	const setNovelStatus = useDatabaseStore.getState().setNovelStatus;
+	const setNovel = useDatabaseStore.getState().setNovel;
+	const setCancelNovelDownload = useDatabaseStore.getState().setCancelNovelDownload;
+
+	let cancel = false;
+	const unsubscribeState = useDatabaseStore.subscribe(state => {
+		cancel = !!state.cancelNovelDownload[novel.url]
+	});
+
 	let totalChapters = novel.totalChapters || 0;
 	let downloadedChapters = novel.downloadedChapters || 0;
 
 	try {
 		console.log(`Downloading novel: ${novel.title}`);
-		updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
+		setNovelStatus(novel.url, totalChapters, downloadedChapters, false);
 
 		let res = await axios.get(novel.url);
 		let $ = load(res.data);
@@ -132,13 +141,17 @@ export const downloadNovelFullNovel = async (novel: NovelT, updateDownloadStatus
 				else throw new Error("Failed to get chapter title or url");
 			});
 
+			if (cancel) throw new Error("Download cancelled");
+
 			if (i + 1 > totalPages) break;
 			res = await axios.get(`${novel.url}?page=${i}`);
 			$ = load(res.data);
 		}
 		totalChapters = chapterLinks.length;
-		updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
+		setNovelStatus(novel.url, totalChapters, downloadedChapters, false);
 		console.log(`Total chapters: ${totalChapters}`);
+
+		if (cancel) throw new Error("Download cancelled");
 
 		let chapters: ChapterDataT[] = [];
 		// Load downloaded chapters from cache if any
@@ -151,6 +164,7 @@ export const downloadNovelFullNovel = async (novel: NovelT, updateDownloadStatus
 		downloadedChapters = 0;
 		const chaptersSaveQueue = new AutoQueue();
 		for (let i = 0; i < chapterLinks.length; i++) {
+			if (cancel) throw new Error("Download cancelled");
 			const chapter = chapterLinks[i];
 			if (chapters.length > i && chapters[i].url === chapter.url && chapters[i].title === chapter.title) {
 				downloadedChapters++;
@@ -167,11 +181,12 @@ export const downloadNovelFullNovel = async (novel: NovelT, updateDownloadStatus
 			// Cache downloaded chapters to file
 			chaptersSaveQueue.enqueue(() => saveChaptersToInternal(novel.url, JSON.stringify(chapters)));
 			downloadedChapters++;
-			updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
+			setNovelStatus(novel.url, totalChapters, downloadedChapters, false);
 		}
-		updateDownloadStatus(novel.url, totalChapters, downloadedChapters, false);
+		setNovelStatus(novel.url, totalChapters, downloadedChapters, false);
 
 		// Generate and save EPUB
+		if (cancel) throw new Error("Download cancelled");
 		console.log("Generating EPUB");
 		const epubBlob = await generateEPUB(novel, chapters);
 		await saveNovelEpubToDownloads(novel.title, epubBlob);
@@ -180,10 +195,12 @@ export const downloadNovelFullNovel = async (novel: NovelT, updateDownloadStatus
 		console.error(error);
 	}
 
+	unsubscribeState();
 	novel.totalChapters = totalChapters;
 	novel.downloadedChapters = downloadedChapters;
-	updateDownloadStatus(novel.url, totalChapters, downloadedChapters, true);
-	return novel;
+	setCancelNovelDownload(novel.url, false);
+	setNovelStatus(novel.url, totalChapters, downloadedChapters, true);
+	setNovel(novel);
 }
 
 const downloadNovelFullChapter = async (title: string, url: string) => {

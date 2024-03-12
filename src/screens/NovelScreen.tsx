@@ -4,45 +4,47 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { SourcesStackParamList } from "./sources/SourcesNavigator";
 import { ScrollView, TouchableOpacity } from "react-native-gesture-handler";
 import { useContext, useEffect, useState } from "react";
-import { downloadNovelFullNovel, loadNovelFullNovel } from "../lib/sources/novelfull";
-import { DatabaseContext } from "../contexts/DatabaseContext";
+import { downloadNovelFullNovel, fetchNovelFullNovel } from "../lib/sources/novelfull";
 import { NovelT } from "../lib/types";
 import { LibraryStackParamList } from "./library/LibraryNavigator";
 import { assertUnreachable, roundNumber } from "../lib/utils";
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { stripDatabaseInfoFromNovel } from "../lib/sources/sources";
+import useDatabaseStore from "../stores/databaseStore";
 
 type Props = CompositeScreenProps<
 	StackScreenProps<SourcesStackParamList, "Novel">,
 	StackScreenProps<LibraryStackParamList, "Novel">
 >;
 export default function NovelScreen({ route, navigation }: Props) {
-	const db = useContext(DatabaseContext);
+	const dbNovel = useDatabaseStore(state => state.database?.novels[route.params.novel.url]);
+	const dbNovelStatus = useDatabaseStore(state => state.novelStatus[route.params.novel.url]);
+	const dbSetNovel = useDatabaseStore(state => state.setNovel);
+	const dbDeleteNovel = useDatabaseStore(state => state.deleteNovel);
+	const dbCancelNovelDownload = useDatabaseStore(state => state.cancelNovelDownload[route.params.novel.url]);
+	const dbSetCancelNovelDownload = useDatabaseStore(state => state.setCancelNovelDownload);
 
 	const [isLoadingNovel, setIsLoadingNovel] = useState(false);
-	const [inDatabase, setInDatabase] = useState(false);
 	const [novel, setNovel] = useState(route.params.novel);
 
 	const [showMoreDesc, setShowMoreDesc] = useState(false);
 
 	useEffect(() => {
-		const dbNovel = db.database?.novels[novel.url];
 		if (dbNovel) {
 			console.log("Loaded novel from database");
 			setNovel(dbNovel);
-			setInDatabase(true);
 		}
 		else {
 			console.log("Novel not found in database, loading from source");
-			loadNovel();
+			fetchNovelFromSource();
 		}
-	}, [db.database]);
+	}, [dbNovel]);
 
 	const loadSourceNovel = async (novel: NovelT): Promise<NovelT | undefined> => {
 		// TODO: Handle sources here
 		switch (novel.source) {
 			case "NovelFull":
-				return await loadNovelFullNovel(novel.url, novel);
+				return await fetchNovelFullNovel(novel.url, novel);
 		}
 		return assertUnreachable(novel.source);
 	}
@@ -52,44 +54,35 @@ export default function NovelScreen({ route, navigation }: Props) {
 		// TODO: Handle sources here
 		switch (novel.source) {
 			case "NovelFull":
-				const newNovel = await downloadNovelFullNovel(novel, db.updateDownloadStatus);
-				setNovel(newNovel);
-				db.saveNovel(newNovel);
+				await downloadNovelFullNovel(novel);
 				return;
 		}
 		return assertUnreachable(novel.source);
 	}
 
-	const loadNovel = async () => {
+	const fetchNovelFromSource = async () => {
 		if (isLoadingNovel) return;
 		setIsLoadingNovel(true);
-
-		let loadedNovel = await loadSourceNovel(novel);
-
-		if (loadedNovel) {
-			setNovel(loadedNovel);
-		}
+		const loadedNovel = await loadSourceNovel(novel);
+		if (loadedNovel) setNovel(stripDatabaseInfoFromNovel(loadedNovel));
 		setIsLoadingNovel(false);
 	}
 
 	const handleSaveNovel = () => {
 		if (isLoadingNovel) return;
-		const isSaved = db.saveNovel(novel);
-		if (!isSaved) console.error("Failed to save novel to database");
-		else setInDatabase(true);
+		novel.inLibrary = true;
+		dbSetNovel(novel);
 	}
 
 	const handleDeleteNovel = () => {
-		if (!db.database || !inDatabase || isLoadingNovel) return;
-		const isDeleted = db.deleteNovel(novel);
+		if (!novel.inLibrary) return;
+		dbDeleteNovel(novel);
 		setNovel(prevNovel => stripDatabaseInfoFromNovel(prevNovel));
-		if (!isDeleted) console.error("Failed to delete novel from database");
-		else setInDatabase(false);
 		// if (navigation.canGoBack()) navigation.goBack();
 	}
 
 	const handleCancelDownload = () => {
-		// FIXME: Handle cancel download
+		dbSetCancelNovelDownload(novel.url, true);
 	}
 
 	if (!novel) return <Text>No Novel Selected!</Text>;
@@ -97,24 +90,32 @@ export default function NovelScreen({ route, navigation }: Props) {
 		<ScrollView style={styles.scrollView}>
 			<View style={{ ...styles.novelInfo, opacity: isLoadingNovel ? 0.5 : 1 }}>
 				<View style={styles.controls}>
-					{(db.downloadStatus[novel.url] && !db.downloadStatus[novel.url].complete) &&
+					{(dbNovelStatus && !dbNovelStatus.complete) &&
 						<View style={styles.progress}>
 							<View style={{
 								...styles.progressBar,
-								width: `${roundNumber((db.downloadStatus[novel.url].downloadedChapters
-									/ db.downloadStatus[novel.url].totalChapters)
+								width: `${roundNumber((dbNovelStatus.downloadedChapters
+									/ dbNovelStatus.totalChapters)
 									* 100, 2)}%`
 							}}
 							></View>
 							<Text>
-								{`${roundNumber((db.downloadStatus[novel.url].downloadedChapters
-									/ db.downloadStatus[novel.url].totalChapters)
+								{`${roundNumber((dbNovelStatus.downloadedChapters
+									/ dbNovelStatus.totalChapters)
 									* 100, 2)}%`}
 							</Text>
 						</View>
 					}
 					<View style={styles.controlButtons}>
-						{(novel.inLibrary && (!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete)) &&
+						{(dbNovelStatus && !dbNovelStatus.complete && !dbCancelNovelDownload) &&
+							<TouchableOpacity
+								onPress={() => handleCancelDownload()}
+								disabled={isLoadingNovel}
+							>
+								<MaterialIcons name="cancel" color="red" size={28} />
+							</TouchableOpacity>
+						}
+						{(novel.inLibrary && (!dbNovelStatus || dbNovelStatus.complete)) &&
 							<TouchableOpacity
 								onPress={() => handleDownloadNovel()}
 								disabled={isLoadingNovel}
@@ -122,12 +123,12 @@ export default function NovelScreen({ route, navigation }: Props) {
 								<MaterialIcons name="download" color="green" size={28} />
 							</TouchableOpacity>
 						}
-						{(!db.downloadStatus[novel.url] || db.downloadStatus[novel.url].complete) &&
+						{(!dbNovelStatus || dbNovelStatus.complete) &&
 							<TouchableOpacity
-								onPress={() => inDatabase ? handleDeleteNovel() : handleSaveNovel()}
+								onPress={() => novel.inLibrary ? handleDeleteNovel() : handleSaveNovel()}
 								disabled={isLoadingNovel}
 							>
-								<MaterialIcons name="save" color={inDatabase ? "red" : "green"} size={28} />
+								<MaterialIcons name="save" color={novel.inLibrary ? "red" : "green"} size={28} />
 							</TouchableOpacity>
 						}
 					</View>

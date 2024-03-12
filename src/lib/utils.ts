@@ -36,3 +36,7 @@ export const getFileSafeString = (str: string): string => {
 export const roundNumber = (num: number, factor: number) => {
 	return Math.round((num + Number.EPSILON) * (10 ** factor)) / (10 ** factor)
 }
+
+export const timeout = (ms: number) => {
+	return new Promise(resolve => setTimeout(resolve, ms));
+}

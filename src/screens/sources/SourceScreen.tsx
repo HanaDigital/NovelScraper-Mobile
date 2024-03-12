@@ -19,8 +19,6 @@ export default function SourceScreen({ route, navigation }: Props) {
 		switch (source.name) {
 			case "NovelFull":
 				return await searchNovelFullNovels(search);
-			case "BoxNovel":
-				return [];	// FIXME: Add BoxNovel support
 		}
 		return assertUnreachable(source.name);
 	}

@@ -1,28 +1,28 @@
 import { Image, StyleSheet, Text, View } from "react-native";
-import { DatabaseContext } from "../../contexts/DatabaseContext";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { FlatList, TextInput, TouchableOpacity } from "react-native-gesture-handler";
 import { StackScreenProps } from "@react-navigation/stack";
 import { LibraryStackParamList } from "./LibraryNavigator";
 import { useFocusEffect } from "@react-navigation/native";
+import useDatabaseStore from "../../stores/databaseStore";
 
 type Props = StackScreenProps<LibraryStackParamList, "Library">;
 export default function LibraryScreen({ navigation }: Props) {
-	const db = useContext(DatabaseContext);
+	const dbNovels = useDatabaseStore(state => state.database?.novels);
 
 	const [search, setSearch] = useState("");
-	const [filteredNovels, setFilteredNovels] = useState(db.database?.novels ? Object.values(db.database.novels) : []);
+	const [filteredNovels, setFilteredNovels] = useState(Object.values(dbNovels || {}));
 
 	useFocusEffect(useCallback(() => {
 		setSearch("");
-		setFilteredNovels(Object.values(db.database?.novels || {}));
-	}, [db.database]));
+		setFilteredNovels(Object.values(dbNovels || {}));
+	}, [dbNovels]));
 
 	const handleSearch = () => {
 		if (search === "") {
-			setFilteredNovels(Object.values(db.database?.novels || {}));
+			setFilteredNovels(Object.values(dbNovels || {}));
 		} else {
-			setFilteredNovels(Object.values(db.database?.novels || {})
+			setFilteredNovels(Object.values(dbNovels || {})
 				.filter(novel => novel.title.toLowerCase().includes(search.toLowerCase()))
 			);
 		}

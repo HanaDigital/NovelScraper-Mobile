@@ -4,12 +4,13 @@ import { SourcesStackParamList } from "./SourcesNavigator";
 import { ScrollView, TouchableOpacity } from "react-native-gesture-handler";
 import ImageAutoHeight from "../../components/ImageAutoHeight";
 import { useContext, useEffect, useState } from "react";
-import { DatabaseContext } from "../../contexts/DatabaseContext";
 import { SOURCES } from "../../lib/types";
+import useDatabaseStore from "../../stores/databaseStore";
 
 type Props = StackScreenProps<SourcesStackParamList, "Sources">;
 export default function SourcesScreen({ navigation }: Props) {
-	const db = useContext(DatabaseContext)
+	const dbSources = useDatabaseStore(state => state.database?.sources);
+
 	const [imageStyle, setImageStyle] = useState({ width: 0, height: "auto" });
 
 	const onLayout = (event: any) => {
@@ -20,7 +21,7 @@ export default function SourcesScreen({ navigation }: Props) {
 	return (
 		<ScrollView style={styles.scrollView}>
 			<View style={styles.container}>
-				{Object.values(db.database?.sources || {}).map((source, i) => (
+				{Object.values(dbSources || {}).map((source, i) => (
 					<TouchableOpacity
 						key={source.url}
 						style={styles.button}
