@@ -1,4 +1,4 @@
-import 'package:novelscraper/models/source_model.dart';
+import 'package:novelscraper/models/sources/source_model.dart';
 
 class Novel {
   final Source source;

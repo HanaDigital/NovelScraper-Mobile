@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:novelscraper/components/bottom_navbar.dart';
 import 'package:novelscraper/components/text.dart';
 import 'package:novelscraper/theme.dart';
 
@@ -17,8 +19,19 @@ class _LibraryPageState extends State<LibraryPage> {
           backgroundColor: AppColors.secondaryColor,
           title: const TitleText("Library"),
         ),
-        body: const Center(
-          child: MediumText("Library Page"),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const MediumText("Library Page"),
+              ElevatedButton(
+                onPressed: () {
+                  context.go(readerPath);
+                },
+                child: const SmallText("Open Reader"),
+              ),
+            ],
+          ),
         ));
   }
 }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:novelscraper/models/source_model.dart';
+import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:novelscraper/pages/home_page.dart';
 import 'package:novelscraper/pages/library_page.dart';
+import 'package:novelscraper/pages/reader_page.dart';
 import 'package:novelscraper/pages/sources/source_page.dart';
 import 'package:novelscraper/pages/sources/sources_page.dart';
 
@@ -15,6 +16,7 @@ enum BottomNavPagesEnum {
 const homePath = '/';
 const sourcesPath = '/sources';
 const libraryPath = '/library';
+const readerPath = '/reader';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
@@ -50,7 +52,11 @@ GoRouter bottomNavBarRouter = GoRouter(
           builder: (context, state) => const LibraryPage(),
         ),
       ],
-    )
+    ),
+    GoRoute(
+      path: readerPath,
+      builder: (context, state) => const ReaderPage(),
+    ),
   ],
 );
 

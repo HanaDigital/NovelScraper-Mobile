@@ -1,7 +1,9 @@
+import 'package:novelscraper/models/novel_model.dart';
+
 enum Source {
   novelfull(
     name: "NovelFull",
-    url: "https://novelfull.com/",
+    url: "novelfull.com",
     logoSrc: "novelfull-logo.png",
   );
 
