@@ -4,7 +4,7 @@ import 'package:novelscraper/models/sources/source_model.dart';
 class Novel {
   final Source source;
   final String url;
-  final String title;
+  String title;
   List<String> authors = [];
   List<String> genres = [];
   List<String> alternateTitles = [];

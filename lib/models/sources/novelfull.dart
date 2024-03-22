@@ -27,7 +27,7 @@ class NovelFull {
 
         final novel = Novel(source: Source.novelfull, title: title, url: novelURI.toString());
         novel.authors.add(author);
-        if (thumbnailURL != null) novel.thumbnailURL = Uri.https(Source.novelfull.url, thumbnailURL).toString();
+        novel.thumbnailURL = thumbnailURL != null ? Uri.https(Source.novelfull.url, thumbnailURL).toString() : null;
         novels.add(novel);
       });
     } catch (e, st) {
@@ -37,6 +37,75 @@ class NovelFull {
   }
 
   static Future<Novel?> fetchNovel(Novel novel) async {
+    try {
+      final novelURI = Uri.parse(novel.url);
+      final response = await http.get(novelURI);
+      final document = parse(response.body);
+
+      // GET NOVEL INFO
+      final novelInfoEl = document.querySelector(".col-info-desc");
+      final title = novelInfoEl?.querySelector(".desc > h3.title")?.text.trim();
+      final rating = novelInfoEl
+          ?.querySelector(".small")
+          ?.text
+          .trim()
+          .replaceFirst("Rating: ", "")
+          .replaceFirst(RegExp(r"from[\S\s]*?(?=\d)"), "from ");
+      final description = novelInfoEl?.querySelector(".desc-text")?.text.trim();
+      final latestChapter = novelInfoEl?.querySelector(".l-chapter > ul.l-chapters > li")?.text.trim();
+      final coverURL = novelInfoEl?.querySelector(".info-holder .book img")?.attributes["src"];
+
+      final infoHolderEls = novelInfoEl?.querySelectorAll(".info-holder > .info > div");
+      final authors = infoHolderEls?[0].querySelectorAll("a").map((el) => el.text.trim()).toList();
+      final alternateTitles = infoHolderEls?[1].text.replaceFirst("Alternative names:", "").trim().split(", ");
+      final genres = infoHolderEls?[2].querySelectorAll("a").map((el) => el.text.trim()).toList();
+      final status = infoHolderEls?[4].querySelector("a")?.text.trim();
+
+      // GET CHAPTERS PER PAGE
+      final chaptersEl = document.querySelector("#list-chapter");
+      var chaptersPerPage = 0;
+      chaptersEl?.querySelectorAll("ul.list-chapter").forEach((el) {
+        chaptersPerPage += el.querySelectorAll("li").length;
+      });
+
+      // GET TOTAL CHAPTERS
+      var totalPages = 1;
+      var totalChapters = 0;
+      final lastPageURL = chaptersEl?.querySelector("ul.pagination > li.last")?.querySelector("a")?.attributes["href"];
+      if (lastPageURL != null) {
+        totalPages = int.tryParse(lastPageURL.split("=").last) ?? 1;
+        totalChapters = chaptersPerPage * (totalPages - 1);
+
+        try {
+          final lastPageUri = Uri.parse("${novel.url}?page=$totalPages");
+          final lastPageRes = await http.get(lastPageUri);
+          final lastPageDocument = parse(lastPageRes.body);
+          lastPageDocument.querySelectorAll("#list-chapter ul.list-chapter").forEach((el) {
+            totalChapters += el.querySelectorAll("li").length;
+          });
+        } catch (e, st) {
+          talker.warning("[NovelFull] Error while getting total chapters", e, st);
+        }
+      } else {
+        totalChapters = chaptersPerPage;
+      }
+
+      // UPDATE NOVEL
+      novel.title = title ?? novel.title;
+      novel.authors = authors ?? novel.authors;
+      novel.genres = genres ?? novel.genres;
+      novel.alternateTitles = alternateTitles ?? novel.alternateTitles;
+      novel.description = description ?? novel.description ?? "No description available.";
+
+      novel.coverURL = coverURL != null ? Uri.https(Source.novelfull.url, coverURL).toString() : null;
+      novel.rating = rating ?? novel.rating ?? "No rating available.";
+      novel.latestChapterName = latestChapter ?? novel.latestChapterName;
+      novel.totalChapters = totalChapters > 0 ? totalChapters : novel.totalChapters;
+      novel.status = status ?? novel.status ?? "Unknown";
+      return novel;
+    } catch (e, st) {
+      talker.handle(e, st, "[NovelFull] Failed to fetch novel");
+    }
     return null;
   }
 }

@@ -28,12 +28,14 @@ class DatabaseStore extends ChangeNotifier {
   }
 
   void setNovel(Novel novel) {
+    novel.inLibrary = true;
     _db.novels[novel.url] = novel;
     _saveDB();
     notifyListeners();
   }
 
   void removeNovel(String url) {
+    _db.novels[url]?.inLibrary = false;
     _db.novels.remove(url);
     _saveDB();
     notifyListeners();
