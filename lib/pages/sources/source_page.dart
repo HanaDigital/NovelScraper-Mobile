@@ -35,7 +35,7 @@ class _SourcePageState extends State<SourcePage> {
     setState(() => _isSearching = true);
     switch (source) {
       case Source.novelfull:
-        final novels = await NovelFull().search(query);
+        final novels = await NovelFull.search(query);
         setState(() => _novels = novels);
         break;
     }

@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:novelscraper/models/database_model.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/utils/file.dart';
+import 'package:talker_flutter/talker_flutter.dart';
+
+final talker = TalkerFlutter.init();
 
 class DatabaseStore extends ChangeNotifier {
   Database _db = Database.emptyDB;
@@ -14,9 +17,11 @@ class DatabaseStore extends ChangeNotifier {
     _dbSaveCompleter.complete();
     readDatabase().then((db) {
       if (db != null) {
+        talker.info("[DatabaseStore] Loaded database");
         _db = db;
         notifyListeners();
       } else {
+        talker.warning("[DatabaseStore] Created new database");
         writeDatabase(_db);
       }
     });

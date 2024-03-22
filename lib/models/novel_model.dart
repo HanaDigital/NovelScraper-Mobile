@@ -1,3 +1,4 @@
+import 'package:novelscraper/models/sources/novelfull.dart';
 import 'package:novelscraper/models/sources/source_model.dart';
 
 class Novel {
@@ -19,6 +20,13 @@ class Novel {
   bool inLibrary = false;
 
   Novel({required this.source, required this.url, required this.title});
+
+  Future<Novel?> fetchNovel() async {
+    switch (source) {
+      case Source.novelfull:
+        return NovelFull.fetchNovel(this);
+    }
+  }
 
   factory Novel.fromJson(Map<String, dynamic> json) {
     final novel = Novel(

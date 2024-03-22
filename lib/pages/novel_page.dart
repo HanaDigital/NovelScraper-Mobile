@@ -14,6 +14,31 @@ class NovelPage extends StatefulWidget {
 }
 
 class _NovelPageState extends State<NovelPage> {
+  late Novel _novel;
+  bool _isFetching = false;
+
+  @override
+  void initState() {
+    _novel = widget.novel;
+    loadNovel();
+
+    super.initState();
+  }
+
+  void loadNovel() async {
+    Novel? dbNovel = Provider.of<DatabaseStore>(context, listen: false).db.novels[_novel.url];
+    if (dbNovel != null) {
+      setState(() => _novel = dbNovel);
+    } else {
+      setState(() => _isFetching = true);
+      final fetchedNovel = await _novel.fetchNovel();
+      setState(() {
+        _isFetching = false;
+        _novel = fetchedNovel ?? _novel;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
