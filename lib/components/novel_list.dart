@@ -17,16 +17,17 @@ class NovelList extends StatefulWidget {
 class _NovelListState extends State<NovelList> {
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Expanded(
+    return Flex(
+      direction: Axis.vertical,
+      children: [
+        Expanded(
           child: ListView.separated(
             separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemCount: widget.novels.length,
             itemBuilder: (context, index) {
               final novel = widget.novels[index];
               return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                 tileColor: AppColors.secondaryColor.withOpacity(0.7),
                 leading: novel.thumbnailURL != null ? Image.network(novel.thumbnailURL!) : null,
                 title: SpanMediumText(novel.title, maxLines: 2),
@@ -38,7 +39,7 @@ class _NovelListState extends State<NovelList> {
             },
           ),
         ),
-      ),
+      ],
     );
   }
 }

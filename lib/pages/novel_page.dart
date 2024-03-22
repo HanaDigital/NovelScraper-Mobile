@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:novelscraper/components/text.dart';
 import 'package:novelscraper/models/novel_model.dart';
+import 'package:novelscraper/stores/database_store.dart';
+import 'package:provider/provider.dart';
 
 class NovelPage extends StatefulWidget {
   final Novel novel;
@@ -19,7 +21,17 @@ class _NovelPageState extends State<NovelPage> {
         title: const TitleText("Novel"),
       ),
       body: Center(
-        child: MediumText(widget.novel.title),
+        child: Column(
+          children: [
+            MediumText(widget.novel.title),
+            ElevatedButton(
+              onPressed: () {
+                Provider.of<DatabaseStore>(context, listen: false).setNovel(widget.novel);
+              },
+              child: const SmallText("Save Novel"),
+            ),
+          ],
+        ),
       ),
     );
   }

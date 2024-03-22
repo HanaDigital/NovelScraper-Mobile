@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:novelscraper/components/novel_list.dart';
 import 'package:novelscraper/components/text.dart';
@@ -31,6 +30,8 @@ class _SourcePageState extends State<SourcePage> {
   }
 
   void handleSearch(String query) async {
+    query = query.trim();
+    if (query.isEmpty) return;
     setState(() => _isSearching = true);
     switch (source) {
       case Source.novelfull:
@@ -53,6 +54,7 @@ class _SourcePageState extends State<SourcePage> {
       ),
       body: Column(
         children: [
+          // Search bar
           TextField(
             controller: _searchController,
             onSubmitted: handleSearch,
@@ -66,16 +68,27 @@ class _SourcePageState extends State<SourcePage> {
             ),
             readOnly: _isSearching,
           ),
+
+          // Novels list
           if (!_isSearching && _novels.isNotEmpty)
-            NovelList(
-              novels: _novels,
-              pathPrefix: "/sources/source/${source.name}",
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: NovelList(
+                  novels: _novels,
+                  pathPrefix: "/sources/source/${source.name}",
+                ),
+              ),
             ),
+
+          // Loading indicator
           if (_isSearching)
             const Padding(
               padding: EdgeInsets.only(top: 16),
               child: CircularProgressIndicator(),
             ),
+
+          // No novels found
           if (_novels.isEmpty && !_isSearching && _isSearched)
             Padding(
               padding: const EdgeInsets.only(top: 16),

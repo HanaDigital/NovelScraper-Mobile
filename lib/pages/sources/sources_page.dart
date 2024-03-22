@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:novelscraper/components/text.dart';
-import 'package:novelscraper/models/database_model.dart';
+import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:novelscraper/theme.dart';
 
 class SourcesPage extends StatefulWidget {
@@ -26,7 +26,7 @@ class _SourcesPageState extends State<SourcesPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final source in Database.db.sources.values)
+              for (final source in Source.values)
                 InkWell(
                   onTap: () {
                     context.go("/sources/source/${source.name}", extra: source);

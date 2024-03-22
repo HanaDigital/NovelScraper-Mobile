@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:novelscraper/theme.dart';
 
 class SmallText extends StatelessWidget {
   final String text;

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:novelscraper/models/novel_model.dart';
-import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:novelscraper/pages/home_page.dart';
 import 'package:novelscraper/pages/library_page.dart';
 import 'package:novelscraper/pages/novel_page.dart';
@@ -57,10 +56,15 @@ GoRouter bottomNavBarRouter = GoRouter(
                 ]),
           ],
         ),
-        GoRoute(
-          path: libraryPath,
-          builder: (context, state) => const LibraryPage(),
-        ),
+        GoRoute(path: libraryPath, builder: (context, state) => const LibraryPage(), routes: [
+          GoRoute(
+            path: 'novel',
+            builder: (context, state) {
+              final Novel novel = state.extra! as Novel;
+              return NovelPage(novel: novel);
+            },
+          ),
+        ]),
       ],
     ),
     GoRoute(
