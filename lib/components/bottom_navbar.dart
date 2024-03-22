@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:novelscraper/pages/home_page.dart';
 import 'package:novelscraper/pages/library_page.dart';
+import 'package:novelscraper/pages/novel_page.dart';
 import 'package:novelscraper/pages/reader_page.dart';
 import 'package:novelscraper/pages/sources/source_page.dart';
 import 'package:novelscraper/pages/sources/sources_page.dart';
@@ -39,12 +41,20 @@ GoRouter bottomNavBarRouter = GoRouter(
           builder: (context, state) => const SourcesPage(),
           routes: [
             GoRoute(
-              path: 'source',
-              builder: (context, state) {
-                final Source source = state.extra! as Source;
-                return SourcePage(source: source);
-              },
-            ),
+                path: 'source/:sourceName',
+                builder: (context, state) {
+                  final sourceName = state.pathParameters['sourceName']!;
+                  return SourcePage(sourceName: sourceName);
+                },
+                routes: [
+                  GoRoute(
+                    path: 'novel',
+                    builder: (context, state) {
+                      final Novel novel = state.extra! as Novel;
+                      return NovelPage(novel: novel);
+                    },
+                  ),
+                ]),
           ],
         ),
         GoRoute(

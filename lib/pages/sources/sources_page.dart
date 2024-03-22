@@ -29,7 +29,7 @@ class _SourcesPageState extends State<SourcesPage> {
               for (final source in Database.db.sources.values)
                 InkWell(
                   onTap: () {
-                    context.go("/sources/source", extra: source);
+                    context.go("/sources/source/${source.name}", extra: source);
                   },
                   child: FractionallySizedBox(
                     widthFactor: 0.49,

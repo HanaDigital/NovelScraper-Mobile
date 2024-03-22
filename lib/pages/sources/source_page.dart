@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:novelscraper/components/novel_list.dart';
 import 'package:novelscraper/components/text.dart';
@@ -8,23 +9,30 @@ import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:novelscraper/theme.dart';
 
 class SourcePage extends StatefulWidget {
-  final Source source;
+  final String sourceName;
 
-  const SourcePage({super.key, required this.source});
+  const SourcePage({super.key, required this.sourceName});
 
   @override
   State<SourcePage> createState() => _SourcePageState();
 }
 
 class _SourcePageState extends State<SourcePage> {
+  late final Source source;
   final _searchController = TextEditingController();
   bool _isSearching = false;
   bool _isSearched = false;
   List<Novel> _novels = [];
 
+  @override
+  void initState() {
+    source = Source.values.firstWhere((source) => source.name == widget.sourceName);
+    super.initState();
+  }
+
   void handleSearch(String query) async {
     setState(() => _isSearching = true);
-    switch (widget.source) {
+    switch (source) {
       case Source.novelfull:
         final novels = await NovelFull().search(query);
         setState(() => _novels = novels);
@@ -41,7 +49,7 @@ class _SourcePageState extends State<SourcePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.secondaryColor,
-        title: TitleText(widget.source.name),
+        title: TitleText(source.name),
       ),
       body: Column(
         children: [
@@ -58,7 +66,11 @@ class _SourcePageState extends State<SourcePage> {
             ),
             readOnly: _isSearching,
           ),
-          if (!_isSearching && _novels.isNotEmpty) NovelList(novels: _novels),
+          if (!_isSearching && _novels.isNotEmpty)
+            NovelList(
+              novels: _novels,
+              pathPrefix: "/sources/source/${source.name}",
+            ),
           if (_isSearching)
             const Padding(
               padding: EdgeInsets.only(top: 16),
