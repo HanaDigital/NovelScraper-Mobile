@@ -21,8 +21,8 @@ class _NovelListState extends State<NovelList> {
           final novel = widget.novels[index];
           return ListTile(
             leading: novel.thumbnailURL != null ? Image.network(novel.thumbnailURL!) : null,
-            title: SpanTitleText(novel.title),
-            subtitle: SmallText(novel.authors.join(", ")),
+            title: SpanMediumText(novel.title, maxLines: 2),
+            subtitle: SpanSmallText(novel.authors.join(", ")),
             onTap: () {
               // context.go("/reader", extra: novel);
             },

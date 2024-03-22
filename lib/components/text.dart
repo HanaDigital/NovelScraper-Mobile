@@ -59,25 +59,50 @@ class TitleText extends StatelessWidget {
   }
 }
 
-class SpanTitleText extends StatelessWidget {
-  final String text;
+class SpanMediumText extends StatelessWidget {
+  final String _text;
+  final TextOverflow overflow;
+  final int maxLines;
+  final bool softWrap;
 
-  const SpanTitleText(this.text, {super.key});
+  const SpanMediumText(this._text, {super.key, this.overflow = TextOverflow.ellipsis, this.maxLines = 1, this.softWrap = true});
 
   @override
   Widget build(BuildContext context) {
     return RichText(
-      overflow: TextOverflow.ellipsis,
-      softWrap: true,
+      overflow: overflow,
+      maxLines: maxLines,
+      softWrap: softWrap,
       text: TextSpan(
         style: GoogleFonts.alexandria(
-          textStyle: Theme.of(context).textTheme.titleMedium,
-          color: AppColors.titleColor,
-          fontSize: 14,
-          letterSpacing: 1,
+          textStyle: Theme.of(context).textTheme.bodyMedium,
           fontWeight: FontWeight.bold,
         ),
-        text: text,
+        text: _text,
+      ),
+    );
+  }
+}
+
+class SpanSmallText extends StatelessWidget {
+  final String _text;
+  final TextOverflow overflow;
+  final int maxLines;
+  final bool softWrap;
+
+  const SpanSmallText(this._text, {super.key, this.overflow = TextOverflow.ellipsis, this.maxLines = 1, this.softWrap = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      overflow: overflow,
+      maxLines: maxLines,
+      softWrap: softWrap,
+      text: TextSpan(
+        style: GoogleFonts.alexandria(
+          textStyle: Theme.of(context).textTheme.bodySmall,
+        ),
+        text: _text,
       ),
     );
   }
