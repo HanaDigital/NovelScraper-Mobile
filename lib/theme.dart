@@ -82,6 +82,11 @@ ThemeData primaryTheme = ThemeData(
   dialogTheme: DialogTheme(
     backgroundColor: AppColors.secondaryColor,
     surfaceTintColor: Colors.transparent,
+    titleTextStyle: TextStyle(
+      color: AppColors.titleColor,
+      fontSize: 18,
+      fontWeight: FontWeight.bold,
+    ),
   ),
 
   navigationBarTheme: NavigationBarThemeData(

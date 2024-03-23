@@ -50,17 +50,23 @@ class _LibraryPageState extends State<LibraryPage> {
           // Library list of novels
           Consumer<DatabaseStore>(
             builder: (context, dbStore, child) {
+              final filteredNovels = dbStore.db.novels.values.where((novel) {
+                if (_query.isEmpty) return true;
+                if (novel.title.toLowerCase().contains(_query.toLowerCase())) return true;
+                return false;
+              }).toList();
+
               return Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: NovelList(
-                    novels: dbStore.db.novels.values.where((novel) {
-                      if (_query.isEmpty) return true;
-                      if (novel.title.toLowerCase().contains(_query.toLowerCase())) return true;
-                      return false;
-                    }).toList(),
-                    pathPrefix: "/library",
-                  ),
+                  child: filteredNovels.isNotEmpty
+                      ? NovelList(
+                          novels: filteredNovels,
+                          pathPrefix: "/library",
+                        )
+                      : const Center(
+                          child: MediumText("No novels found"),
+                        ),
                 ),
               );
             },

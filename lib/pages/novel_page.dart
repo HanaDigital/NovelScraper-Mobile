@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:novelscraper/components/dialog.dart';
 import 'package:novelscraper/components/text.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/stores/database_store.dart';
@@ -53,6 +54,10 @@ class _NovelPageState extends State<NovelPage> {
     Provider.of<DatabaseStore>(context, listen: false).removeNovel(_novel.url);
   }
 
+  void downloadNovel() {
+    talker.info("Downloading ${_novel.title}");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,9 +65,26 @@ class _NovelPageState extends State<NovelPage> {
         title: const TitleText("Novel"),
         actions: [
           if (_novel.inLibrary)
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: _isLoading ? null : removeNovel,
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.download),
+                  onPressed: _isLoading ? null : downloadNovel,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: _isLoading
+                      ? null
+                      : () => confirmationDialog(
+                            context: context,
+                            title: "Delete Novel",
+                            body: "Are you sure you want to delete ${_novel.title} from your library?",
+                            confirmText: "Delete",
+                            onConfirm: removeNovel,
+                            type: DialogType.destructive,
+                          ),
+                ),
+              ],
             ),
           if (!_novel.inLibrary)
             IconButton(
@@ -72,10 +94,10 @@ class _NovelPageState extends State<NovelPage> {
         ],
       ),
       body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            if (_isLoading) const CircularProgressIndicator(),
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
             if (!_isLoading)
               Column(
                 children: [
