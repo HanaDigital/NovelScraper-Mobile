@@ -3,7 +3,7 @@ import 'package:novelscraper/components/dialog.dart';
 import 'package:novelscraper/components/text.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/stores/database_store.dart';
-import 'package:novelscraper/utils/epub/epub.dart';
+import 'package:novelscraper/utils/epub/epub_factory.dart';
 import 'package:provider/provider.dart';
 
 class NovelPage extends StatefulWidget {
@@ -57,7 +57,7 @@ class _NovelPageState extends State<NovelPage> {
 
   void downloadNovel() {
     talker.info("Downloading ${_novel.title}");
-    generateEPUB();
+    generateEPUB(_novel, []);
   }
 
   @override

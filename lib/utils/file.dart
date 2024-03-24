@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:novelscraper/models/database_model.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:talker_flutter/talker_flutter.dart';
+import 'package:path/path.dart';
+import 'package:http/http.dart' as http;
 
 final talker = TalkerFlutter.init();
 
@@ -29,35 +32,49 @@ Future<Database?> readDatabase() async {
   }
 }
 
-Future<void> writeToDownloads(String filename, String content) async {
+Future<File?> writeBytesToDownloads(String filename, List<int> content) async {
   try {
     var status = await Permission.storage.status;
     if (!status.isGranted) {
       status = await Permission.storage.request();
-      if (!status.isGranted) throw Exception("Permission denied");
     }
-    final directory = await _downloadDirectory;
-    final file = File('$directory/$filename');
-    await file.writeAsString(content);
+
+    final downloadPath = await _downloadPath;
+    String filePath = join(downloadPath, filename);
+    File file = File(filePath);
+
+    if (await file.exists()) {
+      await file.delete();
+    }
+
+    return await file.writeAsBytes(content, flush: true);
   } catch (e, st) {
     talker.handle(e, st, "Failed to write to downloads");
+    return null;
   }
 }
 
-Future<String?> get _downloadDirectory async {
-  bool dirDownloadExists = true;
-  String? directory;
-  if (Platform.isIOS) {
-    directory = (await getDownloadsDirectory())?.toString();
-  } else if (Platform.isAndroid) {
-    directory = "/storage/emulated/0/Download/";
-    dirDownloadExists = await Directory(directory).exists();
-    if (!dirDownloadExists) {
-      directory = "/storage/emulated/0/Downloads/";
-    }
-  } else
-    throw Exception("Platform not supported");
-  return directory;
+Future<Uint8List?> fetchImage(String url) async {
+  try {
+    final response = await http.get(Uri.parse(url));
+    return response.bodyBytes;
+  } catch (e, st) {
+    talker.handle(e, st, "Failed to download image");
+    return null;
+  }
+}
+
+Future<String> get _downloadPath async {
+  Directory directory = Directory("dir");
+  if (Platform.isAndroid) {
+    directory = Directory("/storage/emulated/0/Download");
+  } else {
+    directory = await getApplicationDocumentsDirectory();
+  }
+
+  final path = directory.path;
+  await Directory(path).create(recursive: true);
+  return path;
 }
 
 Future<File> get _databaseFile async {
