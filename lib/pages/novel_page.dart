@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:novelscraper/components/dialog.dart';
 import 'package:novelscraper/components/text.dart';
+import 'package:novelscraper/models/novel_isolate.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/stores/database_store.dart';
 import 'package:provider/provider.dart';
@@ -52,23 +53,29 @@ class _NovelPageState extends State<NovelPage> {
     setState(() {
       _novel.inLibrary = false;
       _novel.isDownloaded = false;
+      _novel.downloadedChapters = 0;
     });
     Provider.of<DatabaseStore>(context, listen: false).removeNovel(_novel.url);
   }
 
   _downloadNovel() async {
-    Provider.of<DatabaseStore>(context, listen: false).downloadNovel(_novel);
+    Provider.of<DatabaseStore>(context, listen: false).downloadNovelWithIsolate(_novel);
+  }
+
+  _cancelDownload() {
+    Provider.of<DatabaseStore>(context, listen: false).cancelDownload(_novel);
   }
 
   @override
   Widget build(BuildContext context) {
     _novel = Provider.of<DatabaseStore>(context, listen: true).db.novels[_novel.url] ?? _novel;
+    NovelIsolate? novelIsolate = Provider.of<DatabaseStore>(context, listen: true).novelIsolates[_novel.url];
 
     return Scaffold(
       appBar: AppBar(
         title: const TitleText("Novel"),
         actions: [
-          if (_novel.inLibrary)
+          if (_novel.inLibrary && novelIsolate == null)
             Row(
               children: [
                 IconButton(
@@ -90,6 +97,11 @@ class _NovelPageState extends State<NovelPage> {
                 ),
               ],
             ),
+          if (_novel.inLibrary && novelIsolate != null)
+            IconButton(
+              icon: const Icon(Icons.cancel),
+              onPressed: _isLoading ? null : _cancelDownload,
+            ),
           if (!_novel.inLibrary)
             IconButton(
               icon: const Icon(Icons.save),
@@ -105,6 +117,7 @@ class _NovelPageState extends State<NovelPage> {
             if (!_isLoading)
               Column(
                 children: [
+                  if (novelIsolate != null) SmallText("Downloading: ${novelIsolate.downloadPercentage}%"),
                   Image.network(_novel.coverURL ?? _novel.thumbnailURL ?? ""),
                   TitleText(_novel.title),
                   Text(_novel.authors.join(", ")),

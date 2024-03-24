@@ -1,11 +1,12 @@
+import 'dart:isolate';
+
 import 'package:html/dom.dart';
 import 'package:novelscraper/models/chapter_model.dart';
+import 'package:novelscraper/models/novel_isolate.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart';
-import 'package:novelscraper/utils/epub/epub_factory.dart';
-import 'package:novelscraper/utils/file.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
 final talker = TalkerFlutter.init();
@@ -113,7 +114,26 @@ class NovelFull {
     return null;
   }
 
-  static Future<Novel> downloadNovel(Novel novel) async {
+  static Future<void> downloadNovel(Map<String, Object> params) async {
+    final sPort = params['sPort'] as SendPort;
+    final novel = params['novel'] as Novel;
+    final preDownloadedChapters = params['preDownloadedChapters'] as List<Chapter>;
+
+    ReceivePort rPort = ReceivePort();
+    sPort.send([NovelIsolateAction.setSendPort, rPort.sendPort]);
+
+    bool cancel = false;
+    rPort.listen((message) {
+      if (message is List && message.isNotEmpty && message[0] is NovelIsolateAction) {
+        switch (message[0]) {
+          case NovelIsolateAction.cancel:
+            talker.info("[NovelFull] Canceling download");
+            cancel = true;
+            break;
+        }
+      }
+    });
+
     try {
       talker.info("[NovelFull] Downloading novel: ${novel.title}");
       final novelURI = Uri.parse(novel.url);
@@ -124,11 +144,12 @@ class NovelFull {
       novel.totalChapters = chapterLinks.length;
       talker.info("[NovelFull] Found ${chapterLinks.length} chapters");
 
-      final preDownloadedChapters = await readChaptersFromDisk(novel.url);
-
       final List<Chapter> downloadedChapters = [];
       for (int i = 0; i < chapterLinks.length; i++) {
+        if (cancel) throw Exception("Download canceled");
         talker.info("[NovelFull] Downloading chapter: ${i + 1}:${chapterLinks[i].title}");
+        final percentage = num.parse((((i + 1) / chapterLinks.length) * 100).toStringAsFixed(2));
+        sPort.send([NovelIsolateAction.setPercentage, percentage]);
         final chapter = chapterLinks[i];
 
         // CHECK IF CHAPTER IS ALREADY DOWNLOADED
@@ -140,6 +161,7 @@ class NovelFull {
             talker.info("[NovelFull] Chapter already downloaded");
             chapter.content = downloadedChapter.content;
             downloadedChapters.add(chapter);
+            novel.downloadedChapters = downloadedChapters.length;
             continue;
           }
         }
@@ -150,22 +172,21 @@ class NovelFull {
         if (content == null) throw Exception("Failed to download chapter: ${chapter.title}:${chapter.url}");
         chapter.content = content;
         downloadedChapters.add(chapter);
-        await writeChaptersToDisk(novel.url, downloadedChapters);
+        novel.downloadedChapters = downloadedChapters.length;
+        sPort.send([NovelIsolateAction.saveDownloadedChapters, downloadedChapters]);
       }
       talker.info("[NovelFull] Downloaded ${downloadedChapters.length} chapters");
 
       novel.downloadedChapters = downloadedChapters.length;
       novel.isDownloaded = true;
 
-      final epub = await generateEPUB(novel, downloadedChapters);
-      if (epub == null) throw Exception("Failed to generate EPUB");
-      await writeEPUBToDownloads(novel.title, epub);
-      talker.info("[NovelFull] Created EPUB for novel: ${novel.title}");
+      sPort.send([NovelIsolateAction.generateEPUB, novel, downloadedChapters]);
     } catch (e, st) {
       talker.handle(e, st, "[NovelFull] Failed to download novel");
     }
 
-    return novel;
+    rPort.close();
+    sPort.send([NovelIsolateAction.done, novel]);
   }
 
   static Future<List<Chapter>> _getAllChapterLinks(String novelURL, Document document) async {

@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:isolate';
 
 import 'package:flutter/material.dart';
+import 'package:novelscraper/models/chapter_model.dart';
 import 'package:novelscraper/models/database_model.dart';
+import 'package:novelscraper/models/novel_isolate.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/models/sources/novelfull.dart';
 import 'package:novelscraper/models/sources/source_model.dart';
+import 'package:novelscraper/utils/epub/epub_factory.dart';
 import 'package:novelscraper/utils/file.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
@@ -15,7 +19,7 @@ class DatabaseStore extends ChangeNotifier {
   Timer? _dbSaveDebounce;
   Completer _dbSaveCompleter = Completer();
 
-  final Map<String, double> _downloadTracker = {};
+  final Map<String, NovelIsolate> _novelIsolates = {};
 
   DatabaseStore() {
     _dbSaveCompleter.complete();
@@ -31,16 +35,74 @@ class DatabaseStore extends ChangeNotifier {
     });
   }
 
-  void downloadNovel(Novel novel) async {
-    _updateDownloadProgress(novel.url, 0);
+  Future<void> downloadNovelWithIsolate(Novel novel) async {
+    Future<void> Function(Map<String, Object>) isolateDownloadFunction;
     switch (novel.source) {
       case Source.novelfull:
-        novel = await NovelFull.downloadNovel(novel);
+        isolateDownloadFunction = NovelFull.downloadNovel;
     }
-    _removeDownloadProgress(novel.url);
 
-    db.novels[novel.url] = novel;
-    _saveDB();
+    final rPort = ReceivePort();
+    final preDownloadedChapters = await readChaptersFromDisk(novel.url);
+    final isolate = await Isolate.spawn(isolateDownloadFunction, {
+      'sPort': rPort.sendPort,
+      'novel': novel,
+      'preDownloadedChapters': preDownloadedChapters,
+    });
+    NovelIsolate novelIsolate = NovelIsolate(isolate: isolate, rPort: rPort);
+    _novelIsolates[novel.url] = novelIsolate;
+    notifyListeners();
+
+    rPort.listen((message) {
+      if (message is List && message.isNotEmpty && message[0] is NovelIsolateAction) {
+        switch (message[0]) {
+          case NovelIsolateAction.setSendPort:
+            talker.info("[DatabaseStore] Received SendPort");
+            _novelIsolates[novel.url]?.sPort = message[1];
+            break;
+          case NovelIsolateAction.setPercentage:
+            talker.info("[DatabaseStore] Download percentage: ${message[1]}");
+            _novelIsolates[novel.url]?.downloadPercentage = message[1];
+            notifyListeners();
+            break;
+          case NovelIsolateAction.saveDownloadedChapters:
+            talker.info("[DatabaseStore] Saving chapters to disk");
+            List<Chapter> downloadedChapters = message[1];
+            writeChaptersToDisk(novel.url, downloadedChapters);
+            break;
+          case NovelIsolateAction.generateEPUB:
+            talker.info("[DatabaseStore] Generating EPUB");
+            novel = message[1];
+            List<Chapter> downloadedChapters = message[2];
+            generateEPUB(novel, downloadedChapters).then((epub) async {
+              if (epub != null) {
+                await writeEPUBToDownloads(novel.title, epub);
+                talker.info("[DatabaseStore] Created EPUB for novel: ${novel.title}");
+              } else {
+                talker.error("[DatabaseStore] Failed to create EPUB for novel: ${novel.title}");
+              }
+            });
+            break;
+          case NovelIsolateAction.done:
+            talker.info("[DatabaseStore] Cleaning up isolate");
+            novel = message[1];
+            _db.novels[novel.url] = novel;
+            _novelIsolates[novel.url]?.rPort.close();
+            _novelIsolates[novel.url]?.isolate.kill();
+            _novelIsolates.remove(novel.url);
+            _saveDB();
+            notifyListeners();
+            break;
+        }
+      } else {
+        talker.error("[DatabaseStore] Unknown isolate message: $message");
+      }
+    });
+  }
+
+  void cancelDownload(Novel novel) {
+    _novelIsolates[novel.url]?.cancel = true;
+    _novelIsolates[novel.url]?.sPort?.send([NovelIsolateAction.cancel]);
     notifyListeners();
   }
 
@@ -54,6 +116,7 @@ class DatabaseStore extends ChangeNotifier {
   void removeNovel(String url) {
     _db.novels[url]?.inLibrary = false;
     _db.novels[url]?.isDownloaded = false;
+    _db.novels[url]?.downloadedChapters = 0;
     _db.novels.remove(url);
     clearNovelFiles(url);
     _saveDB();
@@ -61,17 +124,7 @@ class DatabaseStore extends ChangeNotifier {
   }
 
   Database get db => _db;
-  Map<String, double> get downloadTracker => _downloadTracker;
-
-  void _updateDownloadProgress(String novelURL, double progress) {
-    _downloadTracker[novelURL] = progress;
-    notifyListeners();
-  }
-
-  void _removeDownloadProgress(String novelURL) {
-    _downloadTracker.remove(novelURL);
-    notifyListeners();
-  }
+  Map<String, NovelIsolate> get novelIsolates => _novelIsolates;
 
   Future<void> _saveDB() async {
     if (_dbSaveDebounce?.isActive ?? false) _dbSaveDebounce?.cancel();
