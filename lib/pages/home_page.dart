@@ -34,7 +34,13 @@ class _HomePageState extends State<HomePage> {
           title: const TitleText("Home"),
         ),
         body: Center(
-          child: MediumText("Version $_version+$_buildNumber"),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              MediumText("Version $_version+$_buildNumber"),
+            ],
+          ),
         ));
   }
 }

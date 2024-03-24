@@ -1,7 +1,11 @@
+import 'package:html/dom.dart';
+import 'package:novelscraper/models/chapter_model.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart';
+import 'package:novelscraper/utils/epub/epub_factory.dart';
+import 'package:novelscraper/utils/file.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
 final talker = TalkerFlutter.init();
@@ -107,5 +111,117 @@ class NovelFull {
       talker.handle(e, st, "[NovelFull] Failed to fetch novel");
     }
     return null;
+  }
+
+  static Future<Novel> downloadNovel(Novel novel) async {
+    try {
+      talker.info("[NovelFull] Downloading novel: ${novel.title}");
+      final novelURI = Uri.parse(novel.url);
+      final response = await http.get(novelURI);
+      final document = parse(response.body);
+
+      final chapterLinks = await _getAllChapterLinks(novel.url, document);
+      novel.totalChapters = chapterLinks.length;
+      talker.info("[NovelFull] Found ${chapterLinks.length} chapters");
+
+      final preDownloadedChapters = await readChaptersFromDisk(novel.url);
+
+      final List<Chapter> downloadedChapters = [];
+      for (int i = 0; i < chapterLinks.length; i++) {
+        talker.info("[NovelFull] Downloading chapter: ${i + 1}:${chapterLinks[i].title}");
+        final chapter = chapterLinks[i];
+
+        // CHECK IF CHAPTER IS ALREADY DOWNLOADED
+        if (preDownloadedChapters.isNotEmpty && preDownloadedChapters.length > i) {
+          final downloadedChapter = preDownloadedChapters[i];
+          if (downloadedChapter.content != null &&
+              downloadedChapter.title == chapter.title &&
+              downloadedChapter.url == chapter.url) {
+            talker.info("[NovelFull] Chapter already downloaded");
+            chapter.content = downloadedChapter.content;
+            downloadedChapters.add(chapter);
+            continue;
+          }
+        }
+
+        // DOWNLOAD CHAPTER CONTENT
+        talker.info("[NovelFull] Downloading chapter content");
+        final content = await _getChapterContent(chapter.title, chapter.url);
+        if (content == null) throw Exception("Failed to download chapter: ${chapter.title}:${chapter.url}");
+        chapter.content = content;
+        downloadedChapters.add(chapter);
+        await writeChaptersToDisk(novel.url, downloadedChapters);
+      }
+      talker.info("[NovelFull] Downloaded ${downloadedChapters.length} chapters");
+
+      novel.downloadedChapters = downloadedChapters.length;
+      novel.isDownloaded = true;
+
+      final epub = await generateEPUB(novel, downloadedChapters);
+      if (epub == null) throw Exception("Failed to generate EPUB");
+      await writeEPUBToDownloads(novel.title, epub);
+      talker.info("[NovelFull] Created EPUB for novel: ${novel.title}");
+    } catch (e, st) {
+      talker.handle(e, st, "[NovelFull] Failed to download novel");
+    }
+
+    return novel;
+  }
+
+  static Future<List<Chapter>> _getAllChapterLinks(String novelURL, Document document) async {
+    final List<Chapter> chapters = [];
+
+    final lastPageURL = document.querySelector("#list-chapter ul.pagination > li.last")?.querySelector("a")?.attributes["href"];
+    final totalPages = lastPageURL != null ? int.tryParse(lastPageURL.split("=").last) ?? 1 : 1;
+
+    for (var i = 1; i <= totalPages; i++) {
+      document.querySelectorAll("#list-chapter .row ul.list-chapter > li").forEach((chapterEl) {
+        final chapterLinkEl = chapterEl.querySelector("a");
+        final title = chapterLinkEl?.text.trim();
+        final url = chapterLinkEl?.attributes["href"];
+        if (title != null && url != null) {
+          chapters.add(Chapter(title: title, url: Uri.https(Source.novelfull.url, url).toString()));
+        }
+      });
+
+      if (i + 1 > totalPages) break;
+      final nextPageURI = Uri.parse("$novelURL?page=${i + 1}");
+      final response = await http.get(nextPageURI);
+      document = parse(response.body);
+    }
+
+    return chapters;
+  }
+
+  static Future<String?> _getChapterContent(String title, String chapterURL) async {
+    try {
+      final response = await http.get(Uri.parse(chapterURL));
+      final document = parse(response.body);
+
+      final contentEl = document.querySelector("#chapter-content");
+      if (contentEl == null) throw Exception("Chapter content not found");
+      contentEl.querySelectorAll("script").forEach((el) => el.remove());
+      contentEl.querySelectorAll("iframe").forEach((el) => el.remove());
+
+      String content = contentEl.innerHtml;
+      content = content
+          .replaceAll(RegExp(r'class=".*?"'), "")
+          .replaceAll(RegExp(r'id=".*?"'), "")
+          .replaceAll(RegExp(r'style=".*?"'), "")
+          .replaceAll(RegExp(r'data-.*?=".*?"'), "")
+          .replaceAll(RegExp(r'<!--.*?-->'), "")
+          .replaceAll(
+              RegExp(
+                  r'<div align="left"[\s\S]*?If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc.. \)[\s\S]*?<\/div>'),
+              "");
+
+      final titleHTML = "<h1>$title</h1>";
+      final propagandaHTML = Chapter.getPropagandaHTML();
+
+      return "$titleHTML\n$content\n$propagandaHTML";
+    } catch (e, st) {
+      talker.handle(e, st, "[NovelFull] Failed to get chapter content");
+      return null;
+    }
   }
 }

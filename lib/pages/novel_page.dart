@@ -3,7 +3,6 @@ import 'package:novelscraper/components/dialog.dart';
 import 'package:novelscraper/components/text.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/stores/database_store.dart';
-import 'package:novelscraper/utils/epub/epub_factory.dart';
 import 'package:provider/provider.dart';
 
 class NovelPage extends StatefulWidget {
@@ -22,16 +21,14 @@ class _NovelPageState extends State<NovelPage> {
   @override
   void initState() {
     _novel = widget.novel;
-    loadNovel();
+    _loadNovel();
 
     super.initState();
   }
 
-  void loadNovel() async {
+  _loadNovel() async {
     Novel? dbNovel = Provider.of<DatabaseStore>(context, listen: false).db.novels[_novel.url];
-    if (dbNovel != null) {
-      setState(() => _novel = dbNovel);
-    } else {
+    if (dbNovel == null) {
       setState(() => _isLoading = true);
       final fetchedNovel = await _novel.fetchNovel();
       setState(() {
@@ -41,27 +38,32 @@ class _NovelPageState extends State<NovelPage> {
     }
   }
 
-  saveNovel() {
-    setState(() {
-      _novel.inLibrary = true;
-    });
+  _setNovel(Novel novel) {
+    setState(() => _novel = novel);
     Provider.of<DatabaseStore>(context, listen: false).setNovel(_novel);
   }
 
-  removeNovel() {
+  _saveNovel() {
+    _novel.inLibrary = true;
+    _setNovel(_novel);
+  }
+
+  _removeNovel() {
     setState(() {
       _novel.inLibrary = false;
+      _novel.isDownloaded = false;
     });
     Provider.of<DatabaseStore>(context, listen: false).removeNovel(_novel.url);
   }
 
-  void downloadNovel() {
-    talker.info("Downloading ${_novel.title}");
-    generateEPUB(_novel, []);
+  _downloadNovel() async {
+    Provider.of<DatabaseStore>(context, listen: false).downloadNovel(_novel);
   }
 
   @override
   Widget build(BuildContext context) {
+    _novel = Provider.of<DatabaseStore>(context, listen: true).db.novels[_novel.url] ?? _novel;
+
     return Scaffold(
       appBar: AppBar(
         title: const TitleText("Novel"),
@@ -71,7 +73,7 @@ class _NovelPageState extends State<NovelPage> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.download),
-                  onPressed: _isLoading ? null : downloadNovel,
+                  onPressed: _isLoading ? null : _downloadNovel,
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete),
@@ -82,7 +84,7 @@ class _NovelPageState extends State<NovelPage> {
                             title: "Delete Novel",
                             body: "Are you sure you want to delete ${_novel.title} from your library?",
                             confirmText: "Delete",
-                            onConfirm: removeNovel,
+                            onConfirm: _removeNovel,
                             type: DialogType.destructive,
                           ),
                 ),
@@ -91,7 +93,7 @@ class _NovelPageState extends State<NovelPage> {
           if (!_novel.inLibrary)
             IconButton(
               icon: const Icon(Icons.save),
-              onPressed: _isLoading ? null : saveNovel,
+              onPressed: _isLoading ? null : _saveNovel,
             ),
         ],
       ),
