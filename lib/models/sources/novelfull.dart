@@ -122,6 +122,7 @@ class NovelFull {
     ReceivePort rPort = ReceivePort();
     sPort.send([NovelIsolateAction.setSendPort, rPort.sendPort]);
 
+    // PORT LISTENER TO CANCEL DOWNLOAD IF REQUESTED
     bool cancel = false;
     rPort.listen((message) {
       if (message is List && message.isNotEmpty && message[0] is NovelIsolateAction) {
@@ -136,51 +137,77 @@ class NovelFull {
 
     try {
       talker.info("[NovelFull] Downloading novel: ${novel.title}");
-      final novelURI = Uri.parse(novel.url);
-      final response = await http.get(novelURI);
-      final document = parse(response.body);
 
-      final chapterLinks = await _getAllChapterLinks(novel.url, document);
-      novel.totalChapters = chapterLinks.length;
-      talker.info("[NovelFull] Found ${chapterLinks.length} chapters");
+      final response = await http.get(Uri.parse(novel.url));
+      Document document = parse(response.body);
 
-      final List<Chapter> downloadedChapters = [];
-      for (int i = 0; i < chapterLinks.length; i++) {
-        if (cancel) throw Exception("Download canceled");
-        talker.info("[NovelFull] Downloading chapter: ${i + 1}:${chapterLinks[i].title}");
-        final percentage = num.parse((((i + 1) / chapterLinks.length) * 100).toStringAsFixed(2));
-        sPort.send([NovelIsolateAction.setPercentage, percentage]);
-        final chapter = chapterLinks[i];
+      final lastPageURL = document.querySelector("#list-chapter ul.pagination > li.last")?.querySelector("a")?.attributes["href"];
+      final totalPages = lastPageURL != null ? int.tryParse(lastPageURL.split("=").last) ?? 1 : 1;
 
-        // CHECK IF CHAPTER IS ALREADY DOWNLOADED
-        if (preDownloadedChapters.isNotEmpty && preDownloadedChapters.length > i) {
-          final downloadedChapter = preDownloadedChapters[i];
-          if (downloadedChapter.content != null &&
-              downloadedChapter.title == chapter.title &&
-              downloadedChapter.url == chapter.url) {
-            talker.info("[NovelFull] Chapter already downloaded");
-            chapter.content = downloadedChapter.content;
-            downloadedChapters.add(chapter);
-            novel.downloadedChapters = downloadedChapters.length;
-            continue;
+      const batch = 10; // BATCH OF CHAPTERS TO DOWNLOAD AT ONCE
+      List<Chapter> chapters = [];
+      for (var i = 1; i <= totalPages; i++) {
+        // GET ALL CHAPTERS ON PAGE
+        List<Chapter> pageChapters = [];
+        document.querySelectorAll("#list-chapter .row ul.list-chapter > li").forEach((chapterEl) {
+          final chapterLinkEl = chapterEl.querySelector("a");
+          final title = chapterLinkEl?.text.trim();
+          final url = chapterLinkEl?.attributes["href"];
+          if (title == null && url == null) throw Exception("Chapter title or url not found");
+          pageChapters.add(Chapter(title: title!, url: Uri.https(Source.novelfull.url, url!).toString()));
+        });
+        talker.info("[NovelFull] Downloading chapters: ${chapters.length + 1} to ${chapters.length + pageChapters.length}");
+
+        int skip = 0;
+        while (skip < pageChapters.length) {
+          // CHECK IF DOWNLOAD IS CANCELED
+          if (cancel) throw Exception("Download canceled");
+
+          // CREATE BATCH OF CHAPTERS TO DOWNLOAD
+          final batchChapters = pageChapters.skip(skip).take(batch).toList();
+
+          final List<Future<Chapter>> downloadedChapters = [];
+          for (int i = 0; i < batchChapters.length; i++) {
+            // CHECK IF CHAPTER IS ALREADY DOWNLOADED
+            final chapter = batchChapters[i];
+            final chaptersIndex = chapters.length + i;
+            if (preDownloadedChapters.length > chaptersIndex) {
+              final downloadedChapter = preDownloadedChapters[chaptersIndex];
+              if (downloadedChapter.content != null &&
+                  downloadedChapter.title == chapter.title &&
+                  downloadedChapter.url == chapter.url) {
+                chapter.content = downloadedChapter.content;
+                downloadedChapters.add(Future.value(chapter));
+                continue;
+              }
+            }
+
+            // DOWNLOAD CHAPTER CONTENT IF NOT ALREADY DOWNLOADED
+            downloadedChapters.add(_getChapterContent(chapter));
           }
+
+          // WAIT FOR BATCH TO COMPLETE DOWNLOADING
+          chapters = [...chapters, ...(await Future.wait(downloadedChapters))];
+          novel.downloadedChapters = chapters.length;
+          skip += batch;
+
+          // SEND DOWNLOAD PERCENTAGE TO UI
+          final percentage = num.parse((((chapters.length) / (novel.totalChapters ?? 0)) * 100).toStringAsFixed(2));
+          sPort.send([NovelIsolateAction.setPercentage, percentage]);
         }
 
-        // DOWNLOAD CHAPTER CONTENT
-        talker.info("[NovelFull] Downloading chapter content");
-        final content = await _getChapterContent(chapter.title, chapter.url);
-        if (content == null) throw Exception("Failed to download chapter: ${chapter.title}:${chapter.url}");
-        chapter.content = content;
-        downloadedChapters.add(chapter);
-        novel.downloadedChapters = downloadedChapters.length;
-        sPort.send([NovelIsolateAction.saveDownloadedChapters, downloadedChapters]);
+        // GET NEXT PAGE IF AVAILABLE
+        if (i + 1 > totalPages) break;
+        final nextPageURI = Uri.parse("${novel.url}?page=${i + 1}");
+        final response = await http.get(nextPageURI);
+        document = parse(response.body);
       }
-      talker.info("[NovelFull] Downloaded ${downloadedChapters.length} chapters");
-
-      novel.downloadedChapters = downloadedChapters.length;
       novel.isDownloaded = true;
+      novel.totalChapters = chapters.length;
+      talker.info("[NovelFull] Downloaded ${novel.totalChapters} chapters");
 
-      sPort.send([NovelIsolateAction.generateEPUB, novel, downloadedChapters]);
+      // REQUEST TO GENERATE EPUB
+      sPort.send([NovelIsolateAction.generateEPUB, novel, chapters]);
     } catch (e, st) {
       talker.handle(e, st, "[NovelFull] Failed to download novel");
     }
@@ -189,60 +216,32 @@ class NovelFull {
     sPort.send([NovelIsolateAction.done, novel]);
   }
 
-  static Future<List<Chapter>> _getAllChapterLinks(String novelURL, Document document) async {
-    final List<Chapter> chapters = [];
+  static Future<Chapter> _getChapterContent(Chapter chapter) async {
+    final response = await http.get(Uri.parse(chapter.url));
+    final document = parse(response.body);
 
-    final lastPageURL = document.querySelector("#list-chapter ul.pagination > li.last")?.querySelector("a")?.attributes["href"];
-    final totalPages = lastPageURL != null ? int.tryParse(lastPageURL.split("=").last) ?? 1 : 1;
+    final contentEl = document.querySelector("#chapter-content");
+    if (contentEl == null) throw Exception("Chapter content not found");
+    contentEl.querySelectorAll("script").forEach((el) => el.remove());
+    contentEl.querySelectorAll("iframe").forEach((el) => el.remove());
 
-    for (var i = 1; i <= totalPages; i++) {
-      document.querySelectorAll("#list-chapter .row ul.list-chapter > li").forEach((chapterEl) {
-        final chapterLinkEl = chapterEl.querySelector("a");
-        final title = chapterLinkEl?.text.trim();
-        final url = chapterLinkEl?.attributes["href"];
-        if (title != null && url != null) {
-          chapters.add(Chapter(title: title, url: Uri.https(Source.novelfull.url, url).toString()));
-        }
-      });
+    String content = contentEl.innerHtml;
+    content = content
+        .replaceAll(RegExp(r'class=".*?"'), "")
+        .replaceAll(RegExp(r'id=".*?"'), "")
+        .replaceAll(RegExp(r'style=".*?"'), "")
+        .replaceAll(RegExp(r'data-.*?=".*?"'), "")
+        .replaceAll(RegExp(r'<!--.*?-->'), "")
+        .replaceAll(
+            RegExp(
+                r'<div align="left"[\s\S]*?If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc.. \)[\s\S]*?<\/div>'),
+            "");
 
-      if (i + 1 > totalPages) break;
-      final nextPageURI = Uri.parse("$novelURL?page=${i + 1}");
-      final response = await http.get(nextPageURI);
-      document = parse(response.body);
-    }
+    final titleHTML = "<h1>${chapter.title}</h1>";
+    final propagandaHTML = Chapter.getPropagandaHTML();
 
-    return chapters;
-  }
-
-  static Future<String?> _getChapterContent(String title, String chapterURL) async {
-    try {
-      final response = await http.get(Uri.parse(chapterURL));
-      final document = parse(response.body);
-
-      final contentEl = document.querySelector("#chapter-content");
-      if (contentEl == null) throw Exception("Chapter content not found");
-      contentEl.querySelectorAll("script").forEach((el) => el.remove());
-      contentEl.querySelectorAll("iframe").forEach((el) => el.remove());
-
-      String content = contentEl.innerHtml;
-      content = content
-          .replaceAll(RegExp(r'class=".*?"'), "")
-          .replaceAll(RegExp(r'id=".*?"'), "")
-          .replaceAll(RegExp(r'style=".*?"'), "")
-          .replaceAll(RegExp(r'data-.*?=".*?"'), "")
-          .replaceAll(RegExp(r'<!--.*?-->'), "")
-          .replaceAll(
-              RegExp(
-                  r'<div align="left"[\s\S]*?If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc.. \)[\s\S]*?<\/div>'),
-              "");
-
-      final titleHTML = "<h1>$title</h1>";
-      final propagandaHTML = Chapter.getPropagandaHTML();
-
-      return "$titleHTML\n$content\n$propagandaHTML";
-    } catch (e, st) {
-      talker.handle(e, st, "[NovelFull] Failed to get chapter content");
-      return null;
-    }
+    content = "$titleHTML\n$content\n$propagandaHTML";
+    chapter.content = content;
+    return chapter;
   }
 }

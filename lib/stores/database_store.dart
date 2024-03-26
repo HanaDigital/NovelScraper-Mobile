@@ -57,16 +57,13 @@ class DatabaseStore extends ChangeNotifier {
       if (message is List && message.isNotEmpty && message[0] is NovelIsolateAction) {
         switch (message[0]) {
           case NovelIsolateAction.setSendPort:
-            talker.info("[DatabaseStore] Received SendPort");
             _novelIsolates[novel.url]?.sPort = message[1];
             break;
           case NovelIsolateAction.setPercentage:
-            talker.info("[DatabaseStore] Download percentage: ${message[1]}");
             _novelIsolates[novel.url]?.downloadPercentage = message[1];
             notifyListeners();
             break;
           case NovelIsolateAction.saveDownloadedChapters:
-            talker.info("[DatabaseStore] Saving chapters to disk");
             List<Chapter> downloadedChapters = message[1];
             writeChaptersToDisk(novel.url, downloadedChapters);
             break;
