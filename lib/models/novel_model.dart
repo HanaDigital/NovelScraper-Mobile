@@ -2,6 +2,7 @@ import 'package:novelscraper/models/sources/novelfull.dart';
 import 'package:novelscraper/models/sources/source_model.dart';
 
 class Novel {
+  int? id;
   final Source source;
   final String url;
   String title;
@@ -34,6 +35,10 @@ class Novel {
       url: json["url"],
       title: json["title"],
     );
+
+    if (json.containsKey("id")) {
+      novel.id = json["id"];
+    }
 
     if (json.containsKey("authors")) {
       novel.authors = List<String>.from(json["authors"]);
@@ -96,6 +101,10 @@ class Novel {
       "url": url,
       "title": title,
     };
+
+    if (id != null) {
+      json["id"] = id;
+    }
 
     if (authors.isNotEmpty) {
       json["authors"] = authors;

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:novelscraper/models/chapter_model.dart';
 import 'package:novelscraper/models/database_model.dart';
@@ -27,6 +28,7 @@ class DatabaseStore extends ChangeNotifier {
       if (db != null) {
         talker.info("[DatabaseStore] Loaded database");
         _db = db;
+        _saveDB();
         notifyListeners();
       } else {
         talker.warning("[DatabaseStore] Created new database");
@@ -61,7 +63,26 @@ class DatabaseStore extends ChangeNotifier {
             break;
           case NovelIsolateAction.setPercentage:
             _novelIsolates[novel.url]?.downloadPercentage = message[1];
-            notifyListeners();
+            AwesomeNotifications().createNotification(
+                content: NotificationContent(
+                  id: novel.id ?? 0,
+                  channelKey: 'download_channel',
+                  actionType: ActionType.Default,
+                  title: 'Downloading ${novel.title}',
+                  body: '${message[1]}%',
+                  progress: message[1],
+                  locked: true,
+                  notificationLayout: NotificationLayout.ProgressBar,
+                  autoDismissible: false,
+                  payload: {"novelURL": novel.url},
+                ),
+                actionButtons: [
+                  NotificationActionButton(
+                    key: 'download_cancel',
+                    label: 'Cancel',
+                  )
+                ]);
+            // notifyListeners();
             break;
           case NovelIsolateAction.saveDownloadedChapters:
             List<Chapter> downloadedChapters = message[1];
@@ -87,6 +108,7 @@ class DatabaseStore extends ChangeNotifier {
             _novelIsolates[novel.url]?.rPort.close();
             _novelIsolates[novel.url]?.isolate.kill();
             _novelIsolates.remove(novel.url);
+            AwesomeNotifications().dismiss(novel.id ?? 0);
             _saveDB();
             notifyListeners();
             break;

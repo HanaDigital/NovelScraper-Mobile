@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:novelscraper/main.dart';
 import 'package:novelscraper/models/novel_model.dart';
 import 'package:novelscraper/pages/home_page.dart';
 import 'package:novelscraper/pages/library_page.dart';
@@ -19,14 +20,12 @@ const sourcesPath = '/sources';
 const libraryPath = '/library';
 const readerPath = '/reader';
 
-final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 GoRouter bottomNavBarRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
+  navigatorKey: MyApp.rootNavigatorKey,
   initialLocation: homePath,
   routes: [
     ShellRoute(
-      navigatorKey: _shellNavigatorKey,
+      navigatorKey: MyApp.shellNavigatorKey,
       builder: (BuildContext context, GoRouterState state, Widget child) {
         return ScaffoldWithBottomNavBar(child: child);
       },

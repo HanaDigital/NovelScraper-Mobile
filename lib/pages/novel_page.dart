@@ -1,3 +1,4 @@
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:novelscraper/components/dialog.dart';
 import 'package:novelscraper/components/text.dart';
@@ -117,7 +118,7 @@ class _NovelPageState extends State<NovelPage> {
             if (!_isLoading)
               Column(
                 children: [
-                  if (novelIsolate != null) SmallText("Downloading: ${novelIsolate.downloadPercentage}%"),
+                  if (novelIsolate != null) const SmallText("Downloading!"),
                   Image.network(_novel.coverURL ?? _novel.thumbnailURL ?? ""),
                   TitleText(_novel.title),
                   Text(_novel.authors.join(", ")),
