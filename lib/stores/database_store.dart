@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:awesome_notifications/awesome_notifications.dart';
@@ -12,6 +13,7 @@ import 'package:novelscraper/models/sources/source_model.dart';
 import 'package:novelscraper/utils/epub/epub_factory.dart';
 import 'package:novelscraper/utils/file.dart';
 import 'package:talker_flutter/talker_flutter.dart';
+import 'package:workmanager/workmanager.dart';
 
 final talker = TalkerFlutter.init();
 
@@ -37,11 +39,17 @@ class DatabaseStore extends ChangeNotifier {
     });
   }
 
+  Future<void> downloadNovel(Novel novel) async {
+    final novelJson = novel.toJson();
+    final novelStr = jsonEncode(novelJson);
+    Workmanager().registerOneOffTask("downloader", "download_novel", tag: "test", inputData: {"novel": novelStr});
+  }
+
   Future<void> downloadNovelWithIsolate(Novel novel) async {
     Future<void> Function(Map<String, Object>) isolateDownloadFunction;
     switch (novel.source) {
       case Source.novelfull:
-        isolateDownloadFunction = NovelFull.downloadNovel;
+        isolateDownloadFunction = NovelFull.downloadNovelWithIsolate;
     }
 
     final rPort = ReceivePort();
@@ -64,24 +72,25 @@ class DatabaseStore extends ChangeNotifier {
           case NovelIsolateAction.setPercentage:
             _novelIsolates[novel.url]?.downloadPercentage = message[1];
             AwesomeNotifications().createNotification(
-                content: NotificationContent(
-                  id: novel.id ?? 0,
-                  channelKey: 'download_channel',
-                  actionType: ActionType.Default,
-                  title: 'Downloading ${novel.title}',
-                  body: '${message[1]}%',
-                  progress: message[1],
-                  locked: true,
-                  notificationLayout: NotificationLayout.ProgressBar,
-                  autoDismissible: false,
-                  payload: {"novelURL": novel.url},
-                ),
-                actionButtons: [
-                  NotificationActionButton(
-                    key: 'download_cancel',
-                    label: 'Cancel',
-                  )
-                ]);
+              content: NotificationContent(
+                id: novel.id ?? 0,
+                channelKey: 'download_channel',
+                actionType: ActionType.Default,
+                title: 'Downloading ${novel.title}',
+                body: '${message[1]}%',
+                progress: message[1],
+                locked: true,
+                notificationLayout: NotificationLayout.ProgressBar,
+                autoDismissible: false,
+                payload: {"novelURL": novel.url},
+              ),
+              actionButtons: [
+                NotificationActionButton(
+                  key: 'download_cancel',
+                  label: 'Cancel',
+                )
+              ],
+            );
             // notifyListeners();
             break;
           case NovelIsolateAction.saveDownloadedChapters:

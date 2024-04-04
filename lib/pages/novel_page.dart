@@ -59,7 +59,7 @@ class _NovelPageState extends State<NovelPage> {
   }
 
   _downloadNovel() async {
-    Provider.of<DatabaseStore>(context, listen: false).downloadNovelWithIsolate(_novel);
+    Provider.of<DatabaseStore>(context, listen: false).downloadNovel(_novel);
   }
 
   _cancelDownload() {
